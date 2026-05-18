@@ -9,6 +9,9 @@ import unreal
 import json
 import sys
 
+# Phase 2: 节点提取辅助函数
+from node_utils import extract_nodes, format_guid
+
 
 def parse_args():
     """从命令行解析 --output 参数。"""
@@ -73,7 +76,17 @@ def detect_asset_type(asset):
                 except:
                     result["node_count"] = -1  # 表示无法获取
 
-    return result
+            # Phase 2: 节点提取入口
+            try:
+                result['nodes'] = extract_nodes(event_graph)
+                result['node_extraction_status'] = 'success'
+                result['extracted_node_count'] = len(result['nodes'])
+            except Exception as e:
+                result['node_extraction_error'] = str(e)
+                result['node_extraction_status'] = 'failed'
+                unreal.log_warning(f'[Phase2] 节点提取失败: {e}')
+
+        return result
 
 
 def main():
@@ -92,6 +105,13 @@ def main():
     print(f"[ue_extract] 写入结果...")
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
+
+    # Phase 2: 输出节点提取状态
+    extraction_status = result.get('node_extraction_status', 'not_attempted')
+    if extraction_status == 'success':
+        print(f"[ue_extract] 节点提取成功，提取了 {result.get('extracted_node_count', 0)} 个节点")
+    elif extraction_status == 'failed':
+        print(f"[ue_extract] 节点提取失败: {result.get('node_extraction_error', 'unknown error')}")
 
     print(f"[ue_extract] 完成。蓝图={result.get('is_blueprint', False)}")
 
