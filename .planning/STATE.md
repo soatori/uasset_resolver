@@ -10,7 +10,7 @@ workflow: "complete"
 
 **项目**: uasset_resolver
 **里程碑**: 0.1.0 (初始)
-**状态**: phase_complete — Phase 1 验证通过，准备开始 Phase 2
+**状态**: shipped — Phase 1 已创建 PR #1，等待合并
 **创建**: 2026-05-18
 **更新**: 2026-05-18
 
@@ -49,6 +49,8 @@ workflow: "complete"
 
 ## 近期变更
 
+- [2026-05-18] Phase 1 shipped — PR #1 创建
+- [2026-05-18] 添加 GitHub remote: https://github.com/soatori/uasset_resolver.git
 - [2026-05-18] Phase 1 执行完成 — 6 个提交
 - [2026-05-18] Phase 1 UAT 验证通过 — 6/6 测试
 - [2026-05-18] Phase 1 VERIFICATION.md 创建 — status=passed
