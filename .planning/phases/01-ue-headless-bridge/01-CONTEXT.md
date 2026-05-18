@@ -1,17 +1,16 @@
-# Phase 1: UE Headless Bridge - Context
+---
+title: "Phase 1: UE 无头桥接 — 上下文"
+gathered: 2026-05-18
+status: 待规划
+---
 
-**Gathered:** 2026-05-18
-**Status:** Ready for planning
+# Phase 1 上下文 — UE 无头桥接
 
-<domain>
-## Phase Boundary
+## 阶段边界
 
 Python 工具能启动 UE 5.7 无头模式，加载指定 `.uasset` 文件，确认其是否为 Blueprint 资产。UE 进程退出后不残留窗口。交付物：一个可执行的 Python 脚本 + 一个 UE 内嵌 Python 脚本，能完成 "加载文件 → 判断类型 → 输出结果" 的最小闭环。
 
-</domain>
-
-<decisions>
-## Implementation Decisions
+## 实现决策
 
 ### 脚本传递方式
 - **D-01:** 使用外部 .py 文件，通过 UE 命令行参数 `-ExecutePythonScript=path/to/script.py` 传入。脚本放在项目 `scripts/ue_extract.py`，便于迭代调试。
@@ -32,71 +31,55 @@ Python 工具能启动 UE 5.7 无头模式，加载指定 `.uasset` 文件，确
 - **D-08:** 混合模式：自动扫描 Windows 注册表（`HKLM\SOFTWARE\EpicGames\Unreal Engine`）和已知安装路径 → 失败后提示用户通过 CLI 参数 `--ue-path` 手动指定。
 - **D-09:** 首次检测成功后，将引擎路径缓存到项目配置文件中，避免重复扫描。
 
-### Claude's Discretion
+### 自由裁量
 - 临时文件的 JSON 结构由实现者决定，只要能被外部脚本正确读取即可。
 - UE 内嵌脚本中的 `print` 输出格式无特殊要求，主要用于调试日志。
 
-</decisions>
+## 规范参考
 
-<canonical_refs>
-## Canonical References
+**下游智能体在规划或实现前必须阅读以下内容。**
 
-**Downstream agents MUST read these before planning or implementing.**
-
-### Phase Requirements
+### 阶段需求
 - `.planning/REQUIREMENTS.md` — PARSE-01, PARSE-02（Phase 1 需求）
 - `.planning/ROADMAP.md` — Phase 1 目标和成功标准
 
-### UE Reference Docs
+### UE 参考文档
 - `UnrealEditor_uasset加载流程.md` — UE 加载管线文档，理解 LoadPackage → FLinkerLoad 流程
 - `蓝图节点文本参考.md` — 蓝图节点文本序列化格式参考（后续 Phase 使用）
 
-### UE Source Code
+### UE 源码
 - `E:\Develop\lib\UnrealEngine\Engine\Source\Runtime\CoreUObject\Private\UObject\LinkerLoad.cpp` — FLinkerLoad 核心实现（274KB）
 
-### Project Context
+### 项目上下文
 - `.planning/PROJECT.md` — 项目概述和关键决策
 - `.planning/codebase/ARCHITECTURE.md` — 目标架构
-- `.planning/codebase/CONCERNS.md` — 风险分析（Binary Format Complexity, Version Compatibility）
+- `.planning/codebase/CONCERNS.md` — 风险分析（二进制格式复杂性、版本兼容性）
 
-</canonical_refs>
+## 既有代码洞察
 
-<code_context>
-## Existing Code Insights
-
-### Reusable Assets
+### 可复用资产
 - 暂无应用代码。项目目前只有测试资产（`BP_FirstPersonCharacter.uasset`）和参考文档。
 
-### Established Patterns
+### 既有模式
 - 无既有模式——从零构建。
 
-### Integration Points
+### 集成点
 - UE 5.7 安装路径：`D:\Program Files\Epic Games\Engine\UE_5.7`
 - UE 编辑器源码：`E:\Develop\lib\UnrealEngine\`
 - 测试资产：`BP_FirstPersonCharacter.uasset`（56KB，真实蓝图文件）
 
-</code_context>
-
-<specifics>
-## Specific Ideas
+## 具体想法
 
 - 外部 Python 脚本文件应放在项目根目录下的 `scripts/` 目录中，便于版本控制。
 - 临时输出文件统一放在 `temp/` 目录（已在 `.gitignore` 中排除）。
 - 引擎路径缓存建议放在 `temp/ue_config.json` 或类似位置。
 
-</specifics>
-
-<deferred>
-## Deferred Ideas
+## 延期想法
 
 - 智能超时 + 重试（D-07）——后续 Phase 实现
 - 非 Blueprint 资产类型支持（D-05 扩展性）—— v2 需求，已列在 REQUIREMENTS.md v2 中
 
-None — discussion stayed within phase scope
-
-</deferred>
-
 ---
 
-*Phase: 1-UE Headless Bridge*
-*Context gathered: 2026-05-18*
+*阶段: 1-UE 无头桥接*
+*上下文收集: 2026-05-18*
