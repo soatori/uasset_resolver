@@ -117,7 +117,7 @@ def derive_virtual_path(filename):
     return f"/Game/{name}"
 
 
-def prepare_asset(uasset_path, content_dir="Content"):
+def prepare_asset(uasset_path, content_dir="temp/Content"):
     """
     准备资产：复制到 Content 目录（PARSE-01）。
     返回虚拟路径。
@@ -156,14 +156,16 @@ def run_ue_headless(ue_exe, project_path, script_path, output_path, timeout=300)
     output_path = output_path.replace("\\", "/")
     ue_exe = ue_exe.replace("\\", "/")
 
+    # 禁用启动画面和 splash screen（完全静默启动）
     cmd = [
         ue_exe,
         project_path,
-        "-NullRHI",
-        "-unattended",
-        "-NoLoadingScreen",
-        "-NoScreenMessages",
-        "-stdout",  # 输出日志到 stdout
+        "-NoSplash",         # 禁用启动画面
+        "-NullRHI",          # 无头渲染
+        "-unattended",       # 无需用户交互
+        "-NoLoadingScreen",  # 禁用加载画面
+        "-NoScreenMessages", # 禁用屏幕消息
+        "-stdout",           # 输出日志到 stdout
         f"-ExecutePythonScript={script_arg}",
     ]
 
@@ -226,12 +228,12 @@ def main():
                         help="UE 进程超时秒数（默认 300，首次启动可能需要更长时间）")
     args = parser.parse_args()
 
-    # 获取项目根目录
+    # 获取项目根目录（查找 temp/minimal.uproject）
     project_root = os.path.dirname(os.path.abspath(__file__))
-    while not os.path.exists(os.path.join(project_root, "minimal.uproject")):
+    while not os.path.exists(os.path.join(project_root, "temp", "minimal.uproject")):
         parent = os.path.dirname(project_root)
         if parent == project_root:
-            print("[controller] 错误：找不到 minimal.uproject")
+            print("[controller] 错误：找不到 temp/minimal.uproject")
             sys.exit(1)
         project_root = parent
 
@@ -251,13 +253,13 @@ def main():
 
     # 2. 资产准备
     uasset_path = os.path.abspath(args.uasset)
-    content_dir = os.path.join(project_root, "Content")
+    content_dir = os.path.join(project_root, "temp", "Content")
     virtual_path = prepare_asset(uasset_path, content_dir)
     if not virtual_path:
         sys.exit(1)
 
     # 3. 启动 UE
-    project_path = os.path.join(project_root, "minimal.uproject")
+    project_path = os.path.join(project_root, "temp", "minimal.uproject")
     script_path = os.path.join(project_root, "scripts", "ue_extract.py")
     output_path = os.path.join(project_root, args.output)
 
