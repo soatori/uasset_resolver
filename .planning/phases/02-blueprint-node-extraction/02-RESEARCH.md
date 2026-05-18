@@ -6,7 +6,18 @@
 
 ## Summary
 
+> ⚠️ **重要勘误（2026-05-18 Wave 3 验证）**
+>
+> 本研究的假设 A1、A3、A4 已验证为错误。Python API 只暴露有 BlueprintVisible 标记的属性，而 EdGraphNode 关键属性（NodePosX/NodePosY/NodeGuid/Pins）均无此标记。EdGraphPin 不是 UObject，完全不暴露。
+>
+> 详细分析参见：
+> - `02-RESEARCH-CORRIGENDUM.md` — 勘误摘要
+> - `02-API-LIMITATIONS-RESEARCH.md` — Python API 反射机制真实工作原理
+> - `02-ALTERNATIVE-PATHWAYS-RESEARCH.md` — 8 个替代方案深度研究
+
 本 Phase 核心任务是从已加载的 Blueprint 资产中提取 EventGraph 的完整结构。基于 UE 5.7 源码分析，UE Python API 通过反射机制自动暴露 `UEdGraphNode`、`UEdGraphPin` 及相关类型的所有 `UPROPERTY` 属性，可直接访问节点和引脚的全部信息。
+
+**⚠️ 假设错误：** 实际 Python API 只暴露有 `CPF_BlueprintVisible` 标记的属性（参见 PyGenUtil.cpp 第 1608-1612 行）。EdGraphNode 关键属性因无此标记而无法访问。EdGraphPin 不是 UObject，完全不暴露。
 
 关键发现：
 1. **EdGraphNode 和 EdGraphPin 的所有公开属性均可通过 Python API 直接读取**（反射机制自动暴露）
@@ -531,22 +542,22 @@ def format_guid(guid):
 
 **Note:** 以上假设均基于 UE 源码结构和 Python 绑定机制，置信度较高。
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **GUID 格式是否与参考文本一致？**
    - What we know: 参考文本使用 32 字符十六进制（如 `F923268743B7B52D669FFB960CA79833`）
    - What's unclear: UE Python API 的 str(FGuid) 返回格式是否相同
-   - Recommendation: Phase 2 实现时测试验证，必要时添加格式转换
+   - **RESOLVED:** format_guid() 函数移除连字符并转大写，02-03 端到端验证时确认与参考文本匹配
 
 2. **PinSubCategoryMemberReference 和 PinValueType 是否总是为空？**
    - What we know: 参考文本中这些字段多数为空或 ()
    - What's unclear: 某些复杂类型（如 Map）可能使用这些字段
-   - Recommendation: 提取时保留字段，值为 None 表示未使用
+   - **RESOLVED:** 提取时保留字段，值为 None 表示未使用（D-10 缺失字段 None 填充策略）
 
 3. **EdGraphNode_Comment（注释框）的额外属性是否需要提取？**
    - What we know: 参考文本显示注释框有 NodeComment、NodeWidth、NodeHeight 等属性
    - What's unclear: 这些是否通过标准 EdGraphNode 属性暴露
-   - Recommendation: 提取 node_comment 属性（EdGraphNode.NodeComment），宽高属性按需提取
+   - **RESOLVED:** 提取 node_comment 属性（EdGraphNode.NodeComment），宽高属性暂不提取（按需扩展）
 
 ## Environment Availability
 

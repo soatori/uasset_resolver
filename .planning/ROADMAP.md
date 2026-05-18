@@ -58,7 +58,12 @@
 计划:
 - [x] `02-01-PLAN.md` — node_utils.py 辅助函数模块 + ue_extract.py 扩展入口 ✓ 2026-05-18
 - [x] `02-02-PLAN.md` — 核心节点提取逻辑实现（extract_nodes/pins/linked_to/pin_type） ✓ 2026-05-18
-- [ ] `02-03-PLAN.md` — 端到端验证 + 与参考文本对比
+- [x] `02-03-PLAN.md` — 端到端验证 + 与参考文本对比 ✓ 2026-05-18 ⚠️ 发现 API 限制
+
+**后续研究方向:**
+- 编辑器复制蓝图文本功能（`FEdGraphUtilities::ExportNodesToText`）
+- C++ 插件扩展 Python API
+- CUE4Parse-Python 离线解析方案
 
 ### Phase 3: 输出格式化
 
@@ -98,7 +103,7 @@
 | Phase | 计划完成 | 状态 | 已完成 |
 |-------|----------|------|--------|
 | 1. UE 无头桥接 | 1/1 | 完成 | 2026-05-18 |
-| 2. 蓝图节点提取 | 2/3 | 执行中 | Wave 2 完成 |
+| 2. 蓝图节点提取 | 2/3 | ⚠️ 部分完成 | 2026-05-18 — 发现 API 限制 |
 | 3. 输出格式化 | 0/0 | 未开始 | - |
 | 4. CLI 与验证 | 0/0 | 未开始 | - |
 
@@ -106,14 +111,14 @@
 
 ## 覆盖率
 
-| 需求 | Phase | 状态 |
-|------|-------|------|
+| 需求 | Phase | 状态 | 备注 |
+|------|-------|------|------|
 | PARSE-01 | Phase 1 | Complete | 2026-05-18 |
 | PARSE-02 | Phase 1 | Complete | 2026-05-18 |
-| PARSE-03 | Phase 2 | Pending |
-| PARSE-04 | Phase 2 | Pending |
-| PARSE-05 | Phase 2 | Pending |
-| PARSE-06 | Phase 2 | Pending |
+| PARSE-03 | Phase 2 | ⚠️ Partial | 节点类型/名称成功，坐标/GUID 失败（API 限制） |
+| PARSE-04 | Phase 2 | ❌ Blocked | EdGraphPin 不暴露到 Python |
+| PARSE-05 | Phase 2 | ❌ Blocked | LinkedTo 不可访问（依赖 PARSE-04） |
+| PARSE-06 | Phase 2 | ❌ Blocked | NodePosX/Y 未暴露 |
 | OUT-01 | Phase 3 | Pending |
 | OUT-02 | Phase 3 | Pending |
 | OUT-03 | Phase 4 | Pending |
@@ -121,4 +126,4 @@
 | LOAD-02 | Phase 4 | Pending |
 | VERIFY-01 | Phase 4 | Pending |
 
-**Mapped: 12/12**
+**Mapped: 12/12** | **Complete: 2/12** | **Blocked: 4/12** (待后续研究解决)
