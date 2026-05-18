@@ -101,9 +101,9 @@ def _run_cue4parse_backend(uasset_path: str, output_path: str,
 def _run_ue_headless_backend(project_root: str, uasset_path: str,
                               output_path: str, timeout: int,
                               ue_override: str | None = None,
+                              content_dir: str | None = None,
                               output_format: str = "json") -> int:
     """UE headless 后端提取流程。"""
-    # 延迟导入 controller.py 的函数以避免循环依赖
     scripts_dir = os.path.join(project_root, "scripts")
     sys.path.insert(0, scripts_dir)
     from controller import (
@@ -121,8 +121,16 @@ def _run_ue_headless_backend(project_root: str, uasset_path: str,
     if not os.path.exists(cache_path):
         cache_ue_path(ue_exe, cache_path)
 
-    content_dir = os.path.join(project_root, "temp", "Content")
-    virtual_path = prepare_asset(uasset_path, content_dir)
+    # 使用自定义 Content 目录或默认 temp/Content
+    if content_dir:
+        content_abs = os.path.abspath(content_dir)
+        if not os.path.isdir(content_abs):
+            print(f"[main] 错误：Content 目录不存在：{content_abs}", file=sys.stderr)
+            return 1
+    else:
+        content_abs = os.path.join(project_root, "temp", "Content")
+
+    virtual_path = prepare_asset(uasset_path, content_abs)
     if not virtual_path:
         return 1
 
@@ -156,6 +164,8 @@ def _run_ue_headless_backend(project_root: str, uasset_path: str,
 def _select_backend_auto(uasset_path: str, output_path: str,
                          timeout: int, project_root: str,
                          usmap_path: str | None = None,
+                         ue_override: str | None = None,
+                         content_dir: str | None = None,
                          output_format: str = "json") -> int:
     """auto 模式：先尝试 CUE4Parse，失败回退 ue-headless。"""
     scripts_dir = os.path.join(project_root, "scripts")
@@ -175,7 +185,7 @@ def _select_backend_auto(uasset_path: str, output_path: str,
         print("[main] CUE4Parse 失败，回退到 UE headless 后端...")
 
     print("[main] auto 模式：使用 UE headless 后端")
-    return _run_ue_headless_backend(project_root, uasset_path, output_path, timeout)
+    return _run_ue_headless_backend(project_root, uasset_path, output_path, timeout, ue_override, content_dir, output_format)
 
 
 # ---------------------------------------------------------------------------
@@ -226,6 +236,12 @@ def run(argv: list[str] | None = None) -> int:
         default="auto",
         metavar="MODE",
         help="后端选择：cue4parse（C# 二进制解析，推荐）、ue-headless（UE 无头模式）、auto（优先 CUE4Parse，失败回退，默认）",
+    )
+    backend_group.add_argument(
+        "--content-dir",
+        metavar="PATH",
+        default=None,
+        help="UE 项目 Content 目录路径（仅 ue-headless 模式，用于指定自定义 Content 目录）",
     )
     backend_group.add_argument(
         "--ue-path",
@@ -296,15 +312,29 @@ def run(argv: list[str] | None = None) -> int:
         # ue-headless 默认超时 300s
         ue_timeout = args.timeout if args.timeout != 30 else 300
         rc = _run_ue_headless_backend(
-            project_root, uasset_abs, output_path, ue_timeout, args.ue_path, args.format
+            project_root, uasset_abs, output_path, ue_timeout, args.ue_path, args.content_dir, args.format
         )
     else:  # auto
         rc = _select_backend_auto(
-            uasset_abs, output_path, args.timeout, project_root, args.usmap, args.format
+            uasset_abs, output_path, args.timeout, project_root,
+            usmap_path=args.usmap, ue_override=args.ue_path,
+            content_dir=args.content_dir, output_format=args.format,
         )
 
     if rc == 0:
         print(f"[main] 结果已写入：{output_path}")
+    elif rc != 0:
+        # 所有后端均失败时，打印结构化回退提示
+        print("", file=sys.stderr)
+        print("错误：无法加载 .uasset 文件。", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("CUE4Parse 后端不可用（BPExtractor.exe 未编译）。", file=sys.stderr)
+        print("UE headless 模式需要将文件放入 UE 项目的 Content 目录。", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("选项：", file=sys.stderr)
+        print("1. 编译 CUE4Parse 后端（推荐）：参考 CUE4Parse_集成指南.md", file=sys.stderr)
+        print("2. 指定 UE 项目目录：--content-dir C:\\path\\to\\MyProject\\Content", file=sys.stderr)
+        print("3. 指定引擎路径：--ue-path \"D:\\...\\UnrealEditor.exe\"", file=sys.stderr)
 
     return rc
 
