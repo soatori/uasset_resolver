@@ -53,7 +53,12 @@
   3. 捕获所有节点间连线，包括执行流（exec 引脚）和数据连接
   4. 每个节点记录画布坐标（NodePosX、NodePosY）
 
-**计划**: 待定
+**计划**: 3 个计划（3 个 wave）
+
+计划:
+- [ ] `02-01-PLAN.md` — node_utils.py 辅助函数模块 + ue_extract.py 扩展入口
+- [ ] `02-02-PLAN.md` — 核心节点提取逻辑实现（extract_nodes/pins/linked_to/pin_type）
+- [ ] `02-03-PLAN.md` — 端到端验证 + 与参考文本对比
 
 ### Phase 3: 输出格式化
 
