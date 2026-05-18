@@ -94,7 +94,7 @@ def main() -> int:
     with open(output_abs, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-    node_count = len(data.get("nodes", []))
+    node_count = len(data.get("nodes", data.get("Nodes", [])))
     print(f"[cue4parse] 提取完成：{node_count} 个节点，耗时 {elapsed_ms}ms")
     print(f"[cue4parse] 结果已写入：{output_abs}")
     return 0
