@@ -3,7 +3,7 @@ title: "项目状态"
 created: 2026-05-18
 current_milestone: "0.1.0"
 current_phase: "02-blueprint-node-extraction"
-current_plan: "02-01"
+current_plan: "02-02"
 workflow: "execute"
 ---
 
@@ -11,7 +11,7 @@ workflow: "execute"
 
 **项目**: uasset_resolver
 **里程碑**: 0.1.0 (初始)
-**状态**: phase-02 plan 01 完成 — 接口骨架创建
+**状态**: phase-02 plan 02 完成 — node_utils.py 完整实现
 **创建**: 2026-05-18
 **更新**: 2026-05-18
 
@@ -20,8 +20,8 @@ workflow: "execute"
 **Phase 2: 蓝图节点提取** — 执行中
 - 目标：从已加载蓝图提取 EventGraph 节点、引脚、连线和画布坐标
 - 决策：12 个实现决策已锁定（UE Python API、字典结构、Pin内嵌连线等）
-- 进度：Wave 1 完成 — 接口骨架创建
-- 下一步：Wave 2 实现节点提取逻辑
+- 进度：Wave 2 完成 — node_utils.py 8 个函数完整实现
+- 下一步：Wave 3 端到端验证
 
 ## 已完成阶段
 
