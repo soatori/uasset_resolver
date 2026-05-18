@@ -8,6 +8,12 @@ UE 内嵌 Python 脚本：加载 .uasset 资产，检测是否为蓝图，
 import unreal
 import json
 import sys
+import os
+
+# 添加脚本目录到 Python path（UE 内嵌环境需要）
+script_dir = os.path.dirname(os.path.abspath(__file__))
+if script_dir not in sys.path:
+    sys.path.insert(0, script_dir)
 
 # Phase 2: 节点提取辅助函数
 from node_utils import extract_nodes, format_guid
@@ -63,18 +69,6 @@ def detect_asset_type(asset):
         result["has_event_graph"] = event_graph is not None
         if event_graph:
             result["event_graph_name"] = str(event_graph.get_fname())
-            # 尝试获取节点数量（API 可能因 UE 版本不同）
-            try:
-                nodes = event_graph.nodes
-                result["node_count"] = len(nodes) if nodes else 0
-            except AttributeError:
-                # UE 5.7 中 EdGraph 可能没有 nodes 属性
-                # 使用 get_nodes() 或其他方法
-                try:
-                    nodes = event_graph.get_nodes()
-                    result["node_count"] = len(nodes) if nodes else 0
-                except:
-                    result["node_count"] = -1  # 表示无法获取
 
             # Phase 2: 节点提取入口
             try:

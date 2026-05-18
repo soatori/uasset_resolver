@@ -2,22 +2,37 @@
 节点和引脚提取辅助函数模块。
 
 本模块定义了从蓝图 EventGraph 中提取节点、引脚、连线和画布坐标的完整接口契约。
-所有函数目前为骨架实现，仅包含签名和 docstring，返回占位值。
 
 Phase 2 Wave 1: 接口定义
 Phase 2 Wave 2: 实现逻辑
+
+关键发现：UE 5.7 Python API 对 EdGraphNode 属性的暴露非常有限，
+需要使用 get_editor_property 或正确的属性名。
 """
 
 import unreal
-from typing import Optional
 
 
-def extract_nodes(event_graph: unreal.EdGraph) -> list[dict]:
+def get_node_attr(node, attr_names):
+    """尝试多种属性名来获取节点属性。"""
+    for name in attr_names:
+        try:
+            return getattr(node, name)
+        except:
+            pass
+        try:
+            return node.get_editor_property(name)
+        except:
+            pass
+    return None
+
+
+def extract_nodes(event_graph):
     """
     从 EventGraph 提取所有节点信息。
 
-    遍历 event_graph.nodes，为每个节点调用 extract_single_node() 构建节点字典列表。
-    D-12: 单个节点提取失败时跳过，记录 warning，继续处理其他节点。
+    使用 ObjectIterator 遍历属于 EventGraph 的 EdGraphNode，
+    因为 EdGraph.Nodes 属性是 protected，无法直接访问。
 
     Args:
         event_graph: UE EdGraph 对象，通常是蓝图的 EventGraph。
@@ -38,25 +53,35 @@ def extract_nodes(event_graph: unreal.EdGraph) -> list[dict]:
     if event_graph is None:
         return []
 
+    # UE 5.7 Python API: EdGraph.Nodes 属性是 protected
+    # 使用 ObjectIterator 遍历属于 EventGraph 的 EdGraphNode
     nodes = []
-    for node in event_graph.nodes:
-        try:
-            node_data = extract_single_node(node)
-            if node_data is not None:  # D-12: 跳过失败节点
-                nodes.append(node_data)
-        except Exception as e:
-            # D-12: 节点级异常捕获，跳过失败节点
-            node_name = "unknown"
-            try:
-                node_name = node.get_fname().to_string()
-            except:
-                pass
-            unreal.log_warning(f"[Phase2] 节点提取失败 '{node_name}': {e}")
+
+    try:
+        # 遍历所有 EdGraphNode，筛选属于当前 EventGraph 的节点
+        for node in unreal.ObjectIterator(unreal.EdGraphNode):
+            # 检查节点是否属于当前 EventGraph
+            node_outer = node.get_outer()
+            if node_outer == event_graph:
+                try:
+                    node_data = extract_single_node(node)
+                    if node_data is not None:  # D-12: 跳过失败节点
+                        nodes.append(node_data)
+                except Exception as e:
+                    node_name = "unknown"
+                    try:
+                        node_name = str(node.get_fname())
+                    except:
+                        pass
+                    unreal.log_warning(f"[Phase2] 节点提取失败 '{node_name}': {e}")
+
+    except Exception as e:
+        unreal.log_warning(f"[Phase2] ObjectIterator 遍历失败: {e}")
 
     return nodes
 
 
-def extract_single_node(node: unreal.EdGraphNode) -> Optional[dict]:
+def extract_single_node(node):
     """
     提取单个节点的完整信息。
 
@@ -74,10 +99,15 @@ def extract_single_node(node: unreal.EdGraphNode) -> Optional[dict]:
     try:
         # 基本属性提取
         node_class = node.get_class().get_name()
-        node_name = node.get_fname().to_string()
-        node_pos_x = node.node_pos_x  # Python API 使用 snake_case
-        node_pos_y = node.node_pos_y
-        node_guid = format_guid(node.node_guid)
+        node_name = str(node.get_fname())
+
+        # 坐标属性 - 尝试多种命名
+        node_pos_x = get_node_attr(node, ['NodePosX', 'node_pos_x']) or 0
+        node_pos_y = get_node_attr(node, ['NodePosY', 'node_pos_y']) or 0
+
+        # GUID 属性 - 尝试多种命名
+        node_guid_raw = get_node_attr(node, ['NodeGuid', 'node_guid', 'Guid'])
+        node_guid = format_guid(node_guid_raw) if node_guid_raw else None
 
         node_data = {
             'node_class': node_class,
@@ -109,14 +139,14 @@ def extract_single_node(node: unreal.EdGraphNode) -> Optional[dict]:
         # D-12: 单节点异常捕获，返回 None 表示跳过
         node_name = "unknown"
         try:
-            node_name = node.get_fname().to_string()
+            node_name = str(node.get_fname())
         except:
             pass
         unreal.log_warning(f"[Phase2] 单节点提取失败 '{node_name}': {e}")
         return None
 
 
-def extract_pins(node: unreal.EdGraphNode) -> list[dict]:
+def extract_pins(node):
     """
     从节点提取所有顶层引脚信息。
 
@@ -142,8 +172,12 @@ def extract_pins(node: unreal.EdGraphNode) -> list[dict]:
     """
     pins = []
 
-    # UEdGraphNode.pins 属性返回 UEdGraphPin 数组
-    for pin in node.pins:
+    # UEdGraphNode.pins 属性可能需要 get_editor_property
+    pins_list = get_node_attr(node, ['Pins', 'pins'])
+    if pins_list is None:
+        return []
+
+    for pin in pins_list:
         try:
             # D-07: 检查是否为 SubPin（有 ParentPin），跳过在父 Pin 中处理
             if pin.parent_pin is not None:
@@ -156,7 +190,7 @@ def extract_pins(node: unreal.EdGraphNode) -> list[dict]:
             # 引脚提取失败，记录警告并跳过
             pin_name = "unknown"
             try:
-                pin_name = pin.pin_name.to_string()
+                pin_name = str(pin.pin_name)
             except:
                 pass
             unreal.log_warning(f"[Phase2] 引脚提取失败 '{pin_name}': {e}")
@@ -164,7 +198,7 @@ def extract_pins(node: unreal.EdGraphNode) -> list[dict]:
     return pins
 
 
-def extract_single_pin(pin: unreal.EdGraphPin) -> dict:
+def extract_single_pin(pin):
     """
     提取单个引脚的完整信息。
 
@@ -179,7 +213,7 @@ def extract_single_pin(pin: unreal.EdGraphPin) -> dict:
     """
     # D-08: Pin 字段完整提取
     pin_id = format_guid(pin.pin_id)
-    pin_name = pin.pin_name.to_string()
+    pin_name = str(pin.pin_name)
 
     # Direction: 转换为字符串表示
     direction = 'EGPD_Input' if pin.direction == unreal.EdGraphPinDirection.INPUT else 'EGPD_Output'
@@ -209,7 +243,7 @@ def extract_single_pin(pin: unreal.EdGraphPin) -> dict:
             try:
                 sub_data = {
                     'pin_id': format_guid(sub_pin.pin_id),
-                    'pin_name': sub_pin.pin_name.to_string(),
+                    'pin_name': sub_str(pin.pin_name),
                     'parent_pin': pin_id,  # 引用父 Pin ID
                     'pin_type': extract_pin_type(sub_pin.pin_type),
                     'linked_to': extract_linked_to(sub_pin),
@@ -221,7 +255,7 @@ def extract_single_pin(pin: unreal.EdGraphPin) -> dict:
     return pin_data
 
 
-def extract_pin_type(pin_type: unreal.FEdGraphPinType) -> dict:
+def extract_pin_type(pin_type):
     """
     提取 FEdGraphPinType 的完整结构。
 
@@ -245,8 +279,8 @@ def extract_pin_type(pin_type: unreal.FEdGraphPinType) -> dict:
         PinType 字典，包含上述字段。
     """
     result = {
-        'pin_category': pin_type.pin_category.to_string() if pin_type.pin_category else '',
-        'pin_sub_category': pin_type.pin_sub_category.to_string() if pin_type.pin_sub_category else '',
+        'pin_category': str(pin_type.pin_category) if pin_type.pin_category else '',
+        'pin_sub_category': str(pin_type.pin_sub_category) if pin_type.pin_sub_category else '',
         'pin_sub_category_object': str(pin_type.pin_sub_category_object) if pin_type.pin_sub_category_object else None,
         'container_type': str(pin_type.container_type),  # EPinContainerType: None/Array/Set/Map
         'b_is_reference': pin_type.b_is_reference,
@@ -262,7 +296,7 @@ def extract_pin_type(pin_type: unreal.FEdGraphPinType) -> dict:
             if member_ref:
                 # 提取成员引用结构
                 result['pin_sub_category_member_reference'] = {
-                    'member_name': member_ref.member_name.to_string() if hasattr(member_ref, 'member_name') and member_ref.member_name else None,
+                    'member_name': str(member_ref.member_name) if hasattr(member_ref, 'member_name') and member_ref.member_name else None,
                     'member_parent': str(member_ref.member_parent) if hasattr(member_ref, 'member_parent') and member_ref.member_parent else None,
                 }
             else:
@@ -277,8 +311,8 @@ def extract_pin_type(pin_type: unreal.FEdGraphPinType) -> dict:
             value_type = pin_type.pin_value_type
             if value_type:
                 result['pin_value_type'] = {
-                    'pin_category': value_type.pin_category.to_string() if hasattr(value_type, 'pin_category') and value_type.pin_category else '',
-                    'pin_sub_category': value_type.pin_sub_category.to_string() if hasattr(value_type, 'pin_sub_category') and value_type.pin_sub_category else '',
+                    'pin_category': str(value_type.pin_category) if hasattr(value_type, 'pin_category') and value_type.pin_category else '',
+                    'pin_sub_category': str(value_type.pin_sub_category) if hasattr(value_type, 'pin_sub_category') and value_type.pin_sub_category else '',
                 }
             else:
                 result['pin_value_type'] = None
@@ -298,7 +332,7 @@ def extract_pin_type(pin_type: unreal.FEdGraphPinType) -> dict:
     return result
 
 
-def extract_linked_to(pin: unreal.EdGraphPin) -> list[dict]:
+def extract_linked_to(pin):
     """
     提取引脚的连接目标列表。
 
@@ -321,7 +355,7 @@ def extract_linked_to(pin: unreal.EdGraphPin) -> list[dict]:
             # T-02-03: 立即转换为 (node_name, pin_id)，不保留 UE 对象引用
             owning_node = linked_pin.get_owning_node()
             connection = {
-                'node_name': owning_node.get_fname().to_string(),
+                'node_name': str(owning_node.get_fname()),
                 'pin_id': format_guid(linked_pin.pin_id),
             }
             connections.append(connection)
@@ -331,7 +365,7 @@ def extract_linked_to(pin: unreal.EdGraphPin) -> list[dict]:
     return connections
 
 
-def extract_function_reference(node: unreal.K2Node_CallFunction) -> Optional[dict]:
+def extract_function_reference(node):
     """
     提取 K2Node_CallFunction 的函数引用信息。
 
@@ -358,7 +392,7 @@ def extract_function_reference(node: unreal.K2Node_CallFunction) -> Optional[dic
             return None
 
         result = {
-            'member_name': func_ref.member_name.to_string() if hasattr(func_ref, 'member_name') and func_ref.member_name else None,
+            'member_name': str(func_ref.member_name) if hasattr(func_ref, 'member_name') and func_ref.member_name else None,
             'member_parent': str(func_ref.member_parent) if hasattr(func_ref, 'member_parent') and func_ref.member_parent else None,
             'member_guid': format_guid(func_ref.member_guid) if hasattr(func_ref, 'member_guid') and func_ref.member_guid else None,
             'b_self_context': func_ref.b_self_context if hasattr(func_ref, 'b_self_context') else False,
@@ -371,7 +405,7 @@ def extract_function_reference(node: unreal.K2Node_CallFunction) -> Optional[dic
         return None
 
 
-def format_guid(guid: unreal.FGuid) -> str:
+def format_guid(guid):
     """
     格式化 UE FGuid 为标准字符串。
 
