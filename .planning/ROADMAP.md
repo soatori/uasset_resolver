@@ -12,7 +12,7 @@
 
 ## Phases
 
-- [ ] **Phase 1: UE 无头桥接** — 启动 UE 5.7 无头模式，加载 .uasset 文件，验证蓝图识别
+- [x] **Phase 1: UE 无头桥接** — 启动 UE 5.7 无头模式，加载 .uasset 文件，验证蓝图识别 ✓ 2026-05-18
 - [ ] **Phase 2: 蓝图节点提取** — 提取 EventGraph 节点、引脚、连线和画布坐标
 - [ ] **Phase 3: 输出格式化** — 生成类 UE 编辑器风格的 MD 文本和结构化 JSON
 - [ ] **Phase 4: CLI 与验证** — 命令行界面、加载策略回退、交叉验证
@@ -92,7 +92,7 @@
 
 | Phase | 计划完成 | 状态 | 已完成 |
 |-------|----------|------|--------|
-| 1. UE 无头桥接 | 0/1 | 已规划 | - |
+| 1. UE 无头桥接 | 1/1 | 完成 | 2026-05-18 |
 | 2. 蓝图节点提取 | 0/0 | 未开始 | - |
 | 3. 输出格式化 | 0/0 | 未开始 | - |
 | 4. CLI 与验证 | 0/0 | 未开始 | - |
@@ -103,8 +103,8 @@
 
 | 需求 | Phase | 状态 |
 |------|-------|------|
-| PARSE-01 | Phase 1 | Pending |
-| PARSE-02 | Phase 1 | Pending |
+| PARSE-01 | Phase 1 | Complete | 2026-05-18 |
+| PARSE-02 | Phase 1 | Complete | 2026-05-18 |
 | PARSE-03 | Phase 2 | Pending |
 | PARSE-04 | Phase 2 | Pending |
 | PARSE-05 | Phase 2 | Pending |
