@@ -1,0 +1,24 @@
+# 临时输出目录（运行时生成）
+temp/
+temp/**
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*$py.class
+
+# UE 编辑器生成
+*.uproject.user
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+
+# IDE
+.vs/
+.vscode/
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
