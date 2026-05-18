@@ -63,22 +63,22 @@ AI 代理需要在不打开 UE 编辑器的情况下理解蓝图文件（`.uasse
 - **UE 内置 Python** — 通过 `-ExecutePythonScript` 在引擎内执行提取逻辑
 - **subprocess** — Python 标准库，启动 UE 无头进程
 
-## Evolution
+## 演进
 
-This document evolves at phase transitions and milestone boundaries.
+本文档在阶段转换和里程碑边界时更新。
 
-**After each phase transition** (via `/gsd:transition`):
-1. Requirements invalidated? → Move to Out of Scope with reason
-2. Requirements validated? → Move to Validated with phase reference
-3. New requirements emerged? → Add to Active
-4. Decisions to log? → Add to Key Decisions
-5. "What This Is" still accurate? → Update if drifted
+**每次阶段转换后**（通过 `/gsd:transition`）：
+1. 需求失效？→ 移至 Out of Scope 并注明原因
+2. 需求已验证？→ 移至 Validated 并注明阶段引用
+3. 出现新需求？→ 添加至 Active
+4. 需要记录的决策？→ 添加至 Key Decisions
+5. "What This Is" 仍准确？→ 若有偏离则更新
 
-**After each milestone** (via `/gsd:complete-milestone`):
-1. Full review of all sections
-2. Core Value check — still the right priority?
-3. Audit Out of Scope — reasons still valid?
-4. Update Context with current state
+**每次里程碑后**（通过 `/gsd:complete-milestone`）：
+1. 所有章节全面审查
+2. 核心价值检查 — 仍是正确的优先级？
+3. 审计 Out of Scope — 原因是否仍然有效？
+4. 用当前状态更新 Context
 
 ---
 *Last updated: 2026-05-18 after initialization*

@@ -1,52 +1,52 @@
 ---
-title: "Architecture"
+title: "架构"
 date: 2026-05-18
 focus: arch
 ---
 
-# Architecture
+# 架构
 
-## Pattern
+## 模式
 
-**Reference tool / parser** — No application code exists yet. The codebase currently consists of:
+**参考工具 / 解析器** — 目前还没有应用代码。当前代码库仅包含：
 
-1. A test asset (`BP_FirstPersonCharacter.uasset`)
-2. A reference C++ class (`测试对照C++类/`)
-3. Domain research documents in Chinese
+1. 测试资产（`BP_FirstPersonCharacter.uasset`）
+2. 参考 C++ 类（`测试对照C++类/`）
+3. 中文领域研究文档
 
-## Layers (Target Architecture)
+## 分层（目标架构）
 
-Based on project goals in `CLAUDE.md`, the intended architecture is:
+基于 `CLAUDE.md` 中的项目目标，预期架构为：
 
 ```
-.uasset binary file
+.uasset 二进制文件
     ↓
-FLinkerLoad-style parser (to be implemented)
+FLinkerLoad 风格解析器（待实现）
     ↓
-Structured document output (JSON/Markdown)
+结构化文档输出（JSON/Markdown）
     ↓
-Blueprint EventGraph node representation
+蓝图 EventGraph 节点表示
 ```
 
-## Data Flow
+## 数据流
 
-1. Input: `.uasset` binary file on disk
-2. Parse: Binary deserialization following UE's `FLinkerLoad` pattern
-3. Extract: Export table, import table, object serialization data
-4. Output: Human-readable blueprint node structure with:
-   - Node types and function references
-   - Pin definitions and connections
-   - Canvas positions and GUIDs
+1. 输入：磁盘上的 `.uasset` 二进制文件
+2. 解析：跟随 UE 的 `FLinkerLoad` 模式进行二进制反序列化
+3. 提取：导出表、导入表、对象序列化数据
+4. 输出：人类可读的蓝图节点结构，包含：
+   - 节点类型和函数引用
+   - 引脚定义和连线
+   - 画布坐标和 GUID
 
-## Abstractions
+## 抽象
 
-None implemented yet. Target abstractions based on UE source:
+尚未实现。基于 UE 源码的目标抽象：
 
-- **Package** — `.uasset` file container
-- **Export Table Entry** — Serializable objects within the package
-- **Blueprint Node** — Individual graph element (events, functions, variables)
-- **Pin** — Connection point on a node (input/output with type info)
+- **Package** — `.uasset` 文件容器
+- **Export Table Entry** — 包内可序列化对象
+- **Blueprint Node** — 独立图元素（事件、函数、变量）
+- **Pin** — 节点上的连接点（输入/输出，带类型信息）
 
-## Entry Points
+## 入口点
 
-No executable entry points exist yet.
+尚无可执行入口。

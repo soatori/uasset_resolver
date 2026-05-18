@@ -1,6 +1,6 @@
 # ROADMAP — uasset_resolver
 
-> Unreal Engine `.uasset` Blueprint parser — one command, structured output, no editor.
+> Unreal Engine `.uasset` 蓝图解析工具 — 一条命令，结构化输出，无需编辑器。
 
 **Core Value:** 一条命令读取 .uasset 文件，输出蓝图节点的结构化表示（文本+JSON），无需打开 UE 编辑器。
 
@@ -12,94 +12,97 @@
 
 ## Phases
 
-- [ ] **Phase 1: UE Headless Bridge** — Launch UE 5.7 headless mode, load .uasset file, verify Blueprint identification
-- [ ] **Phase 2: Blueprint Node Extraction** — Extract EventGraph nodes, pins, connections, and canvas coordinates
-- [ ] **Phase 3: Output Formatting** — Generate UE-style MD text output and structured JSON from extracted data
-- [ ] **Phase 4: CLI & Validation** — Command-line interface, loading strategy fallback, cross-validate against reference
+- [ ] **Phase 1: UE 无头桥接** — 启动 UE 5.7 无头模式，加载 .uasset 文件，验证蓝图识别
+- [ ] **Phase 2: 蓝图节点提取** — 提取 EventGraph 节点、引脚、连线和画布坐标
+- [ ] **Phase 3: 输出格式化** — 生成类 UE 编辑器风格的 MD 文本和结构化 JSON
+- [ ] **Phase 4: CLI 与验证** — 命令行界面、加载策略回退、交叉验证
 
 ---
 
 ## Phase Details
 
-### Phase 1: UE Headless Bridge
+### Phase 1: UE 无头桥接
 
-**Goal**: Python tool can launch UE 5.7 headless mode, load a .uasset file, and confirm whether it is a Blueprint asset.
+**目标**: Python 工具能启动 UE 5.7 无头模式，加载 .uasset 文件，并确认其是否为蓝图资产。
 
-**Depends on**: Nothing (first phase)
+**依赖**: 无（首个 Phase）
 
-**Requirements**: PARSE-01, PARSE-02
+**需求**: PARSE-01, PARSE-02
 
-**Success Criteria** (what must be TRUE):
-  1. Running the Python tool launches UE 5.7 with `-unattended -NullRHI` flags and executes an embedded Python script
-  2. Given a valid .uasset path, the tool loads the asset and correctly reports whether it is a Blueprint or not
-  3. UE process exits cleanly after script execution (no hanging editor windows)
+**成功标准**（必须满足）:
+  1. 运行 Python 工具以 `-unattended -NullRHI` 参数启动 UE 5.7 并执行内嵌 Python 脚本
+  2. 给定有效的 .uasset 路径，工具加载资产并正确报告是否为蓝图
+  3. UE 进程在脚本执行后干净退出（无残留编辑器窗口）
 
-**Plans**: TBD
+**计划**: 1 个计划（4 个任务，3 个 wave）
 
-### Phase 2: Blueprint Node Extraction
+计划:
+- [ ] `01-01-PLAN.md` — 项目脚手架、UE 内嵌脚本、外部控制器、端到端冒烟测试
 
-**Goal**: From a loaded Blueprint asset, the tool extracts complete EventGraph structure including nodes, pins, connections, and canvas positions.
+### Phase 2: 蓝图节点提取
 
-**Depends on**: Phase 1
+**目标**: 从已加载的蓝图资产中提取完整的 EventGraph 结构，包括节点、引脚、连线和画布坐标。
 
-**Requirements**: PARSE-03, PARSE-04, PARSE-05, PARSE-06
+**依赖**: Phase 1
 
-**Success Criteria** (what must be TRUE):
-  1. Output contains all EventGraph nodes with their type, name, and function reference (for function nodes)
-  2. Each node includes complete pin definitions: PinId, PinName, PinType, Direction, and LinkedTo references
-  3. All node-to-node connections are captured, including both execution flow (exec pins) and data connections
-  4. Each node has its canvas position (NodePosX, NodePosY) recorded
+**需求**: PARSE-03, PARSE-04, PARSE-05, PARSE-06
 
-**Plans**: TBD
+**成功标准**（必须满足）:
+  1. 输出包含所有 EventGraph 节点及其类型、名称和函数引用（函数节点）
+  2. 每个节点包含完整的引脚定义：PinId、PinName、PinType、Direction 和 LinkedTo 引用
+  3. 捕获所有节点间连线，包括执行流（exec 引脚）和数据连接
+  4. 每个节点记录画布坐标（NodePosX、NodePosY）
 
-### Phase 3: Output Formatting
+**计划**: 待定
 
-**Goal**: Extracted blueprint data is formatted as UE-style MD text and structured JSON, both readable and machine-consumable.
+### Phase 3: 输出格式化
 
-**Depends on**: Phase 2
+**目标**: 将提取的蓝图数据格式化为类 UE 编辑器风格的 MD 文本和结构化 JSON，两者均可读且可被机器消费。
 
-**Requirements**: OUT-01, OUT-02
+**依赖**: Phase 2
 
-**Success Criteria** (what must be TRUE):
-  1. MD output matches UE editor text format: `Begin Object Class=... Name=... End Object` blocks with all node fields
-  2. JSON output contains a three-level structure: nodes → pins → connections, with all extracted data nested correctly
-  3. Both formats contain the same data (field parity between MD and JSON)
+**需求**: OUT-01, OUT-02
 
-**Plans**: TBD
-**UI hint**: yes
+**成功标准**（必须满足）:
+  1. MD 输出匹配 UE 编辑器文本格式：`Begin Object Class=... Name=... End Object` 块，包含所有节点字段
+  2. JSON 输出包含三层结构：nodes → pins → connections，所有提取数据正确嵌套
+  3. 两种格式包含相同数据（MD 和 JSON 字段对等）
 
-### Phase 4: CLI & Validation
+**计划**: 待定
+**UI 提示**: 是
 
-**Goal**: The tool provides a complete command-line experience with loading strategy fallback and verified output correctness.
+### Phase 4: CLI 与验证
 
-**Depends on**: Phase 3
+**目标**: 工具提供完整的命令行体验，包含加载策略回退和已验证的输出正确性。
 
-**Requirements**: OUT-03, LOAD-01, LOAD-02, VERIFY-01
+**依赖**: Phase 3
 
-**Success Criteria** (what must be TRUE):
-  1. User can run a single CLI command with `--format md` or `--format json` to select output format
-  2. User can pass a bare .uasset file path and it loads successfully; if loading fails, a clear message prompts for a UE project Content directory
-  3. Running the tool on `BP_FirstPersonCharacter.uasset` produces output that matches key fields in `蓝图节点文本参考.md` (node count, node names, function references, pin structure)
+**需求**: OUT-03, LOAD-01, LOAD-02, VERIFY-01
 
-**Plans**: TBD
+**成功标准**（必须满足）:
+  1. 用户可通过单条 CLI 命令运行，使用 `--format md` 或 `--format json` 选择输出格式
+  2. 用户可传入裸 .uasset 文件路径并成功加载；若加载失败，显示清晰提示要求指定 UE 项目 Content 目录
+  3. 在 `BP_FirstPersonCharacter.uasset` 上运行工具的输出与 `蓝图节点文本参考.md` 中的关键字段匹配（节点数量、节点名称、函数引用、引脚结构）
 
----
-
-## Progress
-
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. UE Headless Bridge | 0/0 | Not started | - |
-| 2. Blueprint Node Extraction | 0/0 | Not started | - |
-| 3. Output Formatting | 0/0 | Not started | - |
-| 4. CLI & Validation | 0/0 | Not started | - |
+**计划**: 待定
 
 ---
 
-## Coverage
+## 进度
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
+| Phase | 计划完成 | 状态 | 已完成 |
+|-------|----------|------|--------|
+| 1. UE 无头桥接 | 0/1 | 已规划 | - |
+| 2. 蓝图节点提取 | 0/0 | 未开始 | - |
+| 3. 输出格式化 | 0/0 | 未开始 | - |
+| 4. CLI 与验证 | 0/0 | 未开始 | - |
+
+---
+
+## 覆盖率
+
+| 需求 | Phase | 状态 |
+|------|-------|------|
 | PARSE-01 | Phase 1 | Pending |
 | PARSE-02 | Phase 1 | Pending |
 | PARSE-03 | Phase 2 | Pending |

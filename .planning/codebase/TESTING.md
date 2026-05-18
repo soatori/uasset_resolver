@@ -1,24 +1,24 @@
 ---
-title: "Testing"
+title: "测试"
 date: 2026-05-18
 focus: quality
 ---
 
-# Testing
+# 测试
 
-## Current State
+## 当前状态
 
-No test infrastructure exists.
+尚无测试基础设施。
 
-## Test Assets Available
+## 可用测试资产
 
-- `BP_FirstPersonCharacter.uasset` (56KB) — Real Blueprint asset for parser validation
-- `测试对照C++类/` — Reference C++ class showing expected Blueprint-to-C++ mapping
+- `BP_FirstPersonCharacter.uasset`（56KB）— 用于解析器验证的真实蓝图资产
+- `测试对照C++类/` — 参考 C++ 类，展示预期的蓝图到 C++ 映射
 
-## Recommended Testing Strategy
+## 推荐测试策略
 
-Once parser implementation begins:
+解析器实现开始后：
 
-1. **Unit tests**: Verify individual parsing functions (header parsing, export table extraction)
-2. **Fixture tests**: Parse `BP_FirstPersonCharacter.uasset` and verify output matches expected node structure
-3. **Regression tests**: Compare parser output against UE editor's Blueprint text export format (see `蓝图节点文本参考.md`)
+1. **单元测试**: 验证单个解析函数（头解析、导出表提取）
+2. **Fixture 测试**: 解析 `BP_FirstPersonCharacter.uasset` 并验证输出匹配预期节点结构
+3. **回归测试**: 将解析器输出与 UE 编辑器的蓝图文本导出格式对比（参见 `蓝图节点文本参考.md`）

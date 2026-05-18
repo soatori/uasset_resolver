@@ -1,39 +1,39 @@
 ---
-title: "Tech Stack"
+title: "技术栈"
 date: 2026-05-18
 focus: tech
 ---
 
-# Tech Stack
+# 技术栈
 
-## Languages & Runtime
+## 语言与运行时
 
-- **C++** — Unreal Engine native code (UE 5.x, template-based character class)
-- **Blueprint Visual Scripting** — `.uasset` binary assets contain serialized Blueprint graphs
+- **C++** — Unreal Engine 原生代码（UE 5.x，基于模板的角色类）
+- **蓝图可视化脚本** — `.uasset` 二进制资产包含序列化的蓝图图
 
-## Frameworks & Engines
+## 框架与引擎
 
-- **Unreal Engine 5** — Game engine and asset pipeline
-  - `ACharacter` base class — pawn/character framework
-  - `USkeletalMeshComponent` — first-person arm mesh
-  - `UCameraComponent` — first-person camera
-  - Enhanced Input system (`UInputAction`, `FInputActionValue`)
+- **Unreal Engine 5** — 游戏引擎和资产管线
+  - `ACharacter` 基类 — pawn/角色框架
+  - `USkeletalMeshComponent` — 第一人称手臂网格
+  - `UCameraComponent` — 第一人称相机
+  - 增强输入系统（`UInputAction`、`FInputActionValue`）
 
-## Dependencies
+## 依赖
 
-| Package | Version | Purpose |
-|---------|---------|---------|
-| `CoreMinimal.h` | UE built-in | Core types and macros |
-| `GameFramework/Character.h` | UE built-in | Character base class |
-| `Logging/LogMacros.h` | UE built-in | Logging utilities |
+| 包 | 版本 | 用途 |
+|----|------|------|
+| `CoreMinimal.h` | UE 内置 | 核心类型和宏 |
+| `GameFramework/Character.h` | UE 内置 | 角色基类 |
+| `Logging/LogMacros.h` | UE 内置 | 日志工具 |
 
-## Configuration
+## 配置
 
-- No build configuration files present in repo (`.Build.cs`, `.Target.cs` missing — likely part of a larger UE project)
-- `.gitignore` excludes `temp/` directory for cache/temporary files
+- 仓库中无构建配置文件（`.Build.cs`、`.Target.cs` 缺失 — 可能属于更大的 UE 项目）
+- `.gitignore` 排除 `temp/` 目录用于缓存/临时文件
 
-## Key Observations
+## 关键观察
 
-- The `.uasset` file is a **binary serialized format** — not human-readable
-- Blueprint nodes serialize as `Begin Object ... End Object` blocks with pins, positions, and function references
-- Reference docs exist in Chinese (`UnrealEditor_uasset加载流程.md`, `蓝图节点文本参考.md`)
+- `.uasset` 文件是**二进制序列化格式** — 不可直接阅读
+- 蓝图节点序列化为 `Begin Object ... End Object` 块，包含引脚、坐标和函数引用
+- 参考文档以中文编写（`UnrealEditor_uasset加载流程.md`、`蓝图节点文本参考.md`）

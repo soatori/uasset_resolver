@@ -1,41 +1,41 @@
 ---
-title: "Concerns"
+title: "风险与关注点"
 date: 2026-05-18
 focus: concerns
 ---
 
-# Concerns
+# 关注点
 
-## High Risk
+## 高风险
 
-### Binary Format Complexity
+### 二进制格式复杂性
 
-UE's `.uasset` format is **not publicly documented**. The format is an internal UE implementation detail that can change between engine versions. Parsing requires reverse-engineering from UE source code (`LinkerLoad.cpp` — 274KB in the reference UE installation at `E:\Develop\lib\UnrealEngine\`).
+UE 的 `.uasset` 格式**未公开文档化**。该格式是 UE 内部实现细节，可能随引擎版本变化。解析需要反向工程 UE 源码（`LinkerLoad.cpp` — 参考安装 `E:\Develop\lib\UnrealEngine\` 中约 274KB）。
 
-**Mitigation**: Study `FLinkerLoad` implementation in UE source thoroughly before writing parser code.
+**缓解措施**: 在编写解析器代码之前，深入研读 UE 源码中的 `FLinkerLoad` 实现。
 
-### Version Compatibility
+### 版本兼容性
 
-Different UE versions may have different `.uasset` binary layouts. A parser built for one version may fail on assets from another.
+不同 UE 版本可能有不同的 `.uasset` 二进制布局。为一个版本构建的解析器可能在其他版本的资产上失败。
 
-**Mitigation**: Target a specific UE version initially; document version compatibility.
+**缓解措施**: 初始阶段锁定特定 UE 版本；文档化版本兼容性。
 
-## Medium Risk
+## 中等风险
 
-### Scope Creep
+### 范围蔓延
 
-The full .uasset format includes many subsystems (textures, materials, animations). This project should focus only on **Blueprint EventGraph** parsing.
+完整 .uasset 格式包含许多子系统（纹理、材质、动画等）。本项目应聚焦于**蓝图 EventGraph** 解析。
 
-**Mitigation**: Clear scope boundary in PROJECT.md — only Blueprint node extraction.
+**缓解措施**: PROJECT.md 中的明确范围边界 — 仅蓝图节点提取。
 
-### Reference Document Quality
+### 参考文档质量
 
-The reference docs (`UnrealEditor_uasset加载流程.md`, `蓝图节点文本参考.md`) are research notes, not formal specifications. They may contain gaps or inaccuracies.
+参考文档（`UnrealEditor_uasset加载流程.md`、`蓝图节点文本参考.md`）是研究笔记，不是正式规范。可能存在空白或不准确之处。
 
-**Mitigation**: Cross-reference with actual UE source code.
+**缓解措施**: 与实际 UE 源码交叉验证。
 
-## Low Risk
+## 低风险
 
-### Small Codebase
+### 小型代码库
 
-The current codebase has no application code — everything needs to be built from scratch. This is expected for a new project.
+当前代码库没有应用代码 — 一切需要从零构建。这对新项目来说是预期行为。
