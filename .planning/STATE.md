@@ -11,17 +11,18 @@ workflow: "execute"
 
 **项目**: uasset_resolver
 **里程碑**: 0.1.0 (初始)
-**状态**: Phase 2B Plan 01 完成 — Python 封装 BPExtractor.exe 可 import，8/8 测试通过
+**状态**: Phase 2B 完成 — E2E 验证通过（12 节点，378ms），控制器 PascalCase 兼容修复
 **创建**: 2026-05-18
 **更新**: 2026-05-18
 
 ## 当前阶段
 
-**Phase 2B: CUE4Parse 后端** — 执行中
+**Phase 2B: CUE4Parse 后端** — 已完成
 - 目标：用 CUE4Parse 替代 UE Python API，解决 NodeGuid/Pins/坐标不可访问问题
-- 进度：Plan 01 完成（Python 封装 + 8 测试通过），Plan 02 完成（统一控制器），Wave 1 完成（BPExtractor.exe）
-- 阻塞：.usmap 映射文件缺失导致属性值为空（坐标/GUID/Pins 为空）
-- 下一步：Plan 03 / Wave 4 — .usmap 生成方案探索
+- 进度：Phase 2B 全部 Wave 完成（Wave 1: 编译, Wave 2: Python 封装, Wave 3: 统一控制器, Wave 5: 验证与文档）
+- E2E 结果：12 节点提取成功，378ms，退出码 0
+- 阻塞：.usmap 映射文件缺失导致坐标/GUID/Pins 为空（待 Phase 4 或后续解决）
+- 下一步：Phase 3 — 输出格式化（MD + JSON）
 
 ## 阻塞问题
 
@@ -68,12 +69,13 @@ workflow: "execute"
 |------|------|------|------|
 | 1 - UE 无头桥接 | 启动 UE 5.7 无头，加载 .uasset，验证蓝图 | PARSE-01, PARSE-02 | ✓ 完成 |
 | 2 - 蓝图节点提取 | 提取 EventGraph 节点、引脚、连线、坐标 | PARSE-03 ~ PARSE-06 | ⚠️ 部分完成 |
-| 2B - CUE4Parse 后端 | 用 C# 二进制解析替代 UE Python API | PARSE-03 ~ PARSE-06 | 进行中（Plan 01+02 完成） |
+| 2B - CUE4Parse 后端 | 用 C# 二进制解析替代 UE Python API | PARSE-03 ~ PARSE-06 | 完成（12 节点，378ms） |
 | 3 - 输出格式化 | 生成 MD 文本和 JSON 输出 | OUT-01, OUT-02 | 待规划 |
 | 4 - CLI 与验证 | CLI 界面、加载策略、交叉验证 | OUT-03, LOAD-01, LOAD-02, VERIFY-01 | 待规划 |
 
 ## 近期变更
 
+- [2026-05-18] Phase 2B 完成 — E2E 验证通过，12 节点提取成功（378ms），修复控制器 PascalCase 兼容 bug
 - [2026-05-18] Phase 2B Plan 02 完成 — 统一控制器，--backend cue4parse|ue-headless|auto
 - [2026-05-18] Phase 2B Plan 01 完成 — Python 封装 BPExtractor.exe，8/8 测试通过，修复 PascalCase key 兼容
 - [2026-05-18] Phase 2B Wave 1 完成 — BPExtractor.exe 编译发布，0 错误 0 警告

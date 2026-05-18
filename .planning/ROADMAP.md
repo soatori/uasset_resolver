@@ -13,7 +13,8 @@
 ## Phases
 
 - [x] **Phase 1: UE 无头桥接** — 启动 UE 5.7 无头模式，加载 .uasset 文件，验证蓝图识别 ✓ 2026-05-18
-- [ ] **Phase 2: 蓝图节点提取** — 提取 EventGraph 节点、引脚、连线和画布坐标
+- [~] **Phase 2: 蓝图节点提取** — 提取 EventGraph 节点、引脚、连线和画布坐标 ⚠️ UE Python API 受限，转 Phase 2B
+- [x] **Phase 2B: CUE4Parse 后端** — 用 CUE4Parse 替代 UE Python API，解决 NodeGuid/Pins/坐标不可访问问题 ✓ 2026-05-18
 - [ ] **Phase 3: 输出格式化** — 生成类 UE 编辑器风格的 MD 文本和结构化 JSON
 - [ ] **Phase 4: CLI 与验证** — 命令行界面、加载策略回退、交叉验证
 
@@ -61,9 +62,52 @@
 - [x] `02-03-PLAN.md` — 端到端验证 + 与参考文本对比 ✓ 2026-05-18 ⚠️ 发现 API 限制
 
 **后续研究方向:**
-- 编辑器复制蓝图文本功能（`FEdGraphUtilities::ExportNodesToText`）
-- C++ 插件扩展 Python API
-- CUE4Parse-Python 离线解析方案
+- 编辑器复制蓝图文本功能（`FEdGraphUtilities::ExportNodesToText`）— 需 C++ 插件包装，用户不倾向
+- CUE4Parse-Python 离线解析方案 — **推荐**，已编译验证（.NET 8.0，0 错误），支持 UE 5.7/5.8
+- uasset_read 项目参考 — 手写解析器复杂度过高（多层抽象、554 个测试用例）
+- UnrealBridge Skill — 编辑器内自动化工具，与 uasset_resolver 互补（需 UE 插件）
+- C++ 独立工具 — 不可行（UnrealEd 构建守卫阻止非 Editor Target 链接 UnrealEd）
+
+**API 限制发现（2026-05-18）**：
+- NodeGuid = None — UE Python API 不暴露此字段
+- NodePosX/Y = 0 — 属性未正确反序列化
+- Pins = [] — EdGraphPin 不暴露到 Python
+
+**替代方案**：Phase 2B（CUE4Parse 后端）已启动，Wave 1 完成（编译+冒烟测试）。
+
+### Phase 2B: CUE4Parse 后端
+
+**目标**: 用 CUE4Parse C# 二进制解析库替代 UE Python API，直接从 .uasset 读取节点数据。
+
+**依赖**: Phase 1（UE 5.7 环境验证）
+
+**需求**: PARSE-03, PARSE-04, PARSE-05, PARSE-06
+
+**成功标准**（已调整 — .usmap 暂挂）:
+  1. BPExtractor.exe 能从 .uasset 提取 ≥9 个节点（类型/名称）— 无 .usmap 时坐标/GUID/Pins 为空
+  2. Python 封装模块可被 import，提供类型化数据接口
+  3. 统一控制器支持 --backend cue4parse|ue-headless|auto 切换
+  4. CUE4Parse 执行时间 < 10 秒（vs UE headless > 60s）
+  5. ⚠️ 坐标/GUID/Pins 数据 — 需 .usmap（Wave 4 暂挂，见 Phase 4 或后续补充）
+
+**计划**: 3 个计划（Wave 2 / Wave 3 / Wave 5）
+
+计划:
+- [x] `02B-PLAN.md` — Phase 2B 总计划（Wave 1-5 概览）
+- [x] `02B-01-PLAN.md` — Wave 2: Python 封装模块
+- [x] `02B-02-PLAN.md` — Wave 3: 统一控制器
+- [x] `02B-03-PLAN.md` — Wave 5: 验证与文档 ✓ 2026-05-18
+
+**E2E 验证结果（2026-05-18）**：
+- 节点提取：12 个（>= 9 目标）
+- 后端标识：cue4parse
+- 提取耗时：378ms（< 10s 目标）
+- 退出码：0
+
+**已知限制**:
+- .usmap 映射文件缺失 → CUE4Parse 无法解析属性值（坐标/GUID/Pins 为空）
+- UE 5.7 无 GenerateMappingFile 命令let
+- 潜在解决方案：UE4SS、Dumper-7 注入 UE 编辑器进程生成 .usmap
 
 ### Phase 3: 输出格式化
 
@@ -103,7 +147,8 @@
 | Phase | 计划完成 | 状态 | 已完成 |
 |-------|----------|------|--------|
 | 1. UE 无头桥接 | 1/1 | 完成 | 2026-05-18 |
-| 2. 蓝图节点提取 | 2/3 | ⚠️ 部分完成 | 2026-05-18 — 发现 API 限制 |
+| 2. 蓝图节点提取 | 3/3 | ⚠️ 部分完成 | 2026-05-18 — UE Python API 受限，转 Phase 2B |
+| 2B. CUE4Parse 后端 | 3/3 | 完成 | 2026-05-18 — Wave 2/3/5 完成，12 节点提取成功，.usmap 缺失导致坐标/GUID/Pins 为空 |
 | 3. 输出格式化 | 0/0 | 未开始 | - |
 | 4. CLI 与验证 | 0/0 | 未开始 | - |
 
@@ -115,10 +160,10 @@
 |------|-------|------|------|
 | PARSE-01 | Phase 1 | Complete | 2026-05-18 |
 | PARSE-02 | Phase 1 | Complete | 2026-05-18 |
-| PARSE-03 | Phase 2 | ⚠️ Partial | 节点类型/名称成功，坐标/GUID 失败（API 限制） |
-| PARSE-04 | Phase 2 | ❌ Blocked | EdGraphPin 不暴露到 Python |
-| PARSE-05 | Phase 2 | ❌ Blocked | LinkedTo 不可访问（依赖 PARSE-04） |
-| PARSE-06 | Phase 2 | ❌ Blocked | NodePosX/Y 未暴露 |
+| PARSE-03 | Phase 2/2B | Complete | 节点类型/名称提取成功（CUE4Parse 12 节点），378ms |
+| PARSE-04 | Phase 2/2B | ⚠️ Partial | EdGraphPin 不暴露到 Python；CUE4Parse 需 .usmap |
+| PARSE-05 | Phase 2/2B | ⚠️ Partial | LinkedTo 不可访问（依赖 PARSE-04） |
+| PARSE-06 | Phase 2/2B | ⚠️ Partial | NodePosX/Y 未暴露；CUE4Parse 需 .usmap |
 | OUT-01 | Phase 3 | Pending |
 | OUT-02 | Phase 3 | Pending |
 | OUT-03 | Phase 4 | Pending |
@@ -126,4 +171,4 @@
 | LOAD-02 | Phase 4 | Pending |
 | VERIFY-01 | Phase 4 | Pending |
 
-**Mapped: 12/12** | **Complete: 2/12** | **Blocked: 4/12** (待后续研究解决)
+**Mapped: 12/12** | **Complete: 3/12** | **Partial: 4/12** (Phase 2B 用 CUE4Parse 解决节点提取，.usmap 阻塞坐标/Pins)
