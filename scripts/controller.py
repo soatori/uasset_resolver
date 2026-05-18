@@ -6,8 +6,9 @@
   python scripts/controller.py [选项]
     --uasset PATH     .uasset 文件路径（默认：BP_FirstPersonCharacter.uasset）
     --backend MODE    后端选择：cue4parse|ue-headless|auto（默认：ue-headless）
+    --format FMT      输出格式：json|md（默认：json）
     --ue-path PATH    覆盖引擎路径（D-08 回退，仅 ue-headless/auto 模式）
-    --output PATH     输出 JSON 路径（默认：temp/result.json）
+    --output PATH     输出路径（默认：temp/result.json 或 .md，随 --format 变化）
     --timeout SECS    超时秒数（默认：120）
 """
 import argparse
@@ -33,7 +34,7 @@ def _resolve_project_root() -> str:
 
 def _run_cue4parse_backend(uasset_path: str, output_path: str,
                            usmap_path: str | None, timeout: int,
-                           project_root: str) -> int:
+                           project_root: str, output_format: str = "json") -> int:
     """
     使用 CUE4Parse 后端提取蓝图节点。
     返回 0=成功, 1=参数错误, 2=提取失败。
@@ -71,9 +72,26 @@ def _run_cue4parse_backend(uasset_path: str, output_path: str,
     data["backend"] = "cue4parse"
     data["extraction_time_ms"] = elapsed_ms
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    # 根据格式选择输出
+    if output_format == "md":
+        from formatter import format_md
+        output_text = format_md(data)
+        output_ext = ".md"
+    else:
+        from formatter import format_json
+        output_text = format_json(data)
+        output_ext = ".json"
+
+    # 输出路径（默认扩展名随格式变化）
+    final_path = output_path
+    if output_path.endswith(".json") and output_ext == ".md":
+        final_path = output_path[:-5] + output_ext
+    elif output_path.endswith(".md") and output_ext == ".json":
+        final_path = output_path[:-3] + output_ext
+
+    os.makedirs(os.path.dirname(final_path), exist_ok=True)
+    with open(final_path, "w", encoding="utf-8") as f:
+        f.write(output_text)
 
     node_count = len(data.get("Nodes", data.get("nodes", [])))
     print(f"[controller] CUE4Parse 提取完成：{node_count} 个节点，耗时 {elapsed_ms}ms")
@@ -82,7 +100,8 @@ def _run_cue4parse_backend(uasset_path: str, output_path: str,
 
 def _select_backend_auto(uasset_path: str, output_path: str,
                          timeout: int, project_root: str,
-                         usmap_path: str | None = None) -> int:
+                         usmap_path: str | None = None,
+                         output_format: str = "json") -> int:
     """
     auto 模式：先尝试 CUE4Parse，失败回退 ue-headless。
     """
@@ -98,7 +117,7 @@ def _select_backend_auto(uasset_path: str, output_path: str,
 
     if cue4parse_available:
         print("[controller] auto 模式：尝试 CUE4Parse 后端...")
-        rc = _run_cue4parse_backend(uasset_path, output_path, usmap_path, timeout, project_root)
+        rc = _run_cue4parse_backend(uasset_path, output_path, usmap_path, timeout, project_root, output_format)
         if rc == 0:
             return 0
         print("[controller] CUE4Parse 失败，回退到 UE headless 后端...")
@@ -309,7 +328,8 @@ def read_result(output_path):
 
 def _run_ue_headless_backend(project_root: str, uasset_path: str,
                               output_path: str, timeout: int,
-                              ue_override: str | None = None) -> int:
+                              ue_override: str | None = None,
+                              output_format: str = "json") -> int:
     """
     UE headless 后端提取流程（原有逻辑提取为函数）。
     返回 0=成功, 1=失败。
@@ -361,44 +381,17 @@ def _run_ue_headless_backend(project_root: str, uasset_path: str,
 
 
 def main():
-    parser = argparse.ArgumentParser(description="UE 蓝图资产加载控制器")
-    parser.add_argument("--uasset", default="BP_FirstPersonCharacter.uasset",
-                        help=".uasset 文件路径")
-    parser.add_argument("--backend",
-                        choices=["cue4parse", "ue-headless", "auto"],
-                        default="ue-headless",
-                        help="后端选择：cue4parse（CUE4Parse/BPExtractor）、ue-headless（UE 无头模式）、auto（优先 CUE4Parse，失败回退）")
-    parser.add_argument("--ue-path", default=None,
-                        help="覆盖 UE 引擎路径（仅 ue-headless/auto 模式）")
-    parser.add_argument("--output", default="temp/result.json",
-                        help="输出 JSON 路径")
-    parser.add_argument("--timeout", type=int, default=300,
-                        help="进程超时秒数（默认 300，首次启动可能需要更长时间）")
-    parser.add_argument("--usmap", default=None,
-                        help=".usmap 映射文件路径（仅 cue4parse 模式）")
-    args = parser.parse_args()
-
-    project_root = _resolve_project_root()
-    print(f"[controller] 项目根目录：{project_root}")
-
-    uasset_path = os.path.abspath(args.uasset)
-    output_path = os.path.join(project_root, args.output)
-
-    # 根据 backend 分支
-    if args.backend == "cue4parse":
-        rc = _run_cue4parse_backend(
-            uasset_path, output_path, args.usmap, args.timeout, project_root
-        )
-    elif args.backend == "ue-headless":
-        rc = _run_ue_headless_backend(
-            project_root, uasset_path, output_path, args.timeout, args.ue_path
-        )
-    else:  # auto
-        rc = _select_backend_auto(
-            uasset_path, output_path, args.timeout, project_root, args.usmap
-        )
-
-    sys.exit(rc)
+    """Deprecated: 请使用 scripts/main.py 作为统一 CLI 入口。"""
+    print(
+        "[controller] 警告：controller.py 的 CLI 入口已弃用。",
+        file=sys.stderr,
+    )
+    print(
+        "[controller] 请使用：python scripts/main.py <uasset> [选项]",
+        file=sys.stderr,
+    )
+    import main as _main
+    sys.exit(_main.run())
 
 
 if __name__ == "__main__":
