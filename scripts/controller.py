@@ -141,7 +141,7 @@ def prepare_asset(uasset_path, content_dir="Content"):
     return derive_virtual_path(filename)
 
 
-def run_ue_headless(ue_exe, project_path, script_path, output_path, timeout=120):
+def run_ue_headless(ue_exe, project_path, script_path, output_path, timeout=300):
     """
     以无头模式启动 UE（PARSE-01 + D-06）。
     返回 subprocess 退出码。
@@ -166,21 +166,24 @@ def run_ue_headless(ue_exe, project_path, script_path, output_path, timeout=120)
         f"-ExecutePythonScript={script_arg}",
     ]
 
-    print(f"[controller] 启动 UE 无头模式...")
+    print(f"[controller] 启动 UE 无头模式（超时 {timeout} 秒）...")
     print(f"[controller] 命令：{cmd[0]} {cmd[1]} -NullRHI -unattended -ExecutePythonScript=...")
 
+    # 使用 Popen 以便在超时时能正确终止进程
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
     try:
-        result = subprocess.run(
-            cmd,
-            timeout=timeout,
-            capture_output=True,
-            text=True
-        )
-        return result.returncode
-    except subprocess.TimeoutExpired as e:
+        stdout, stderr = process.communicate(timeout=timeout)
+        return process.returncode
+    except subprocess.TimeoutExpired:
         print(f"[controller] 警告：UE 进程超时（{timeout}秒），强制终止")
-        if e.process:
-            e.process.kill()
+        process.kill()
+        stdout, stderr = process.communicate()
         return -1
 
 
@@ -206,8 +209,8 @@ def main():
                         help="覆盖 UE 引擎路径")
     parser.add_argument("--output", default="temp/result.json",
                         help="输出 JSON 路径")
-    parser.add_argument("--timeout", type=int, default=120,
-                        help="UE 进程超时秒数")
+    parser.add_argument("--timeout", type=int, default=300,
+                        help="UE 进程超时秒数（默认 300，首次启动可能需要更长时间）")
     args = parser.parse_args()
 
     # 获取项目根目录
