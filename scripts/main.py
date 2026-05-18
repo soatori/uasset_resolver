@@ -278,6 +278,17 @@ def run(argv: list[str] | None = None) -> int:
         default=None,
         help="输出文件路径（默认：temp/result.json 或 .md，随 --format 变化）",
     )
+    output_group.add_argument(
+        "--verify",
+        action="store_true",
+        help="提取完成后自动与参考文件交叉验证",
+    )
+    output_group.add_argument(
+        "--verify-ref",
+        metavar="PATH",
+        default=None,
+        help="参考文件路径（默认：项目根目录/蓝图节点文本参考.md）",
+    )
 
     args = parser.parse_args(argv)
 
@@ -323,6 +334,42 @@ def run(argv: list[str] | None = None) -> int:
 
     if rc == 0:
         print(f"[main] 结果已写入：{output_path}")
+
+        # 交叉验证
+        if args.verify:
+            # 加载输出结果
+            with open(output_path, "r", encoding="utf-8") as f:
+                if output_path.endswith(".json"):
+                    result_data = json.load(f)
+                else:
+                    # MD 格式需要从 JSON 路径读取验证
+                    json_path = output_path[:-3] + ".json"
+                    if os.path.exists(json_path):
+                        with open(json_path, "r", encoding="utf-8") as jf:
+                            result_data = json.load(jf)
+                    else:
+                        print("[main] 验证需要 JSON 输出，请先用 --format json 运行", file=sys.stderr)
+                        return 3
+
+            ref_path = args.verify_ref
+            if not ref_path:
+                ref_path = os.path.join(project_root, "蓝图节点文本参考.md")
+
+            if not os.path.isfile(ref_path):
+                print(f"[main] 验证参考文件不存在：{ref_path}", file=sys.stderr)
+                return 3
+
+            scripts_dir = os.path.dirname(os.path.abspath(__file__))
+            sys.path.insert(0, scripts_dir)
+            from verify import verify_output
+
+            report = verify_output(result_data, ref_path)
+            print("")
+            print(report.summary())
+
+            if not report.overall_pass:
+                return 3
+
     elif rc != 0:
         # 所有后端均失败时，打印结构化回退提示
         print("", file=sys.stderr)

@@ -15,8 +15,8 @@
 - [x] **Phase 1: UE 无头桥接** — 启动 UE 5.7 无头模式，加载 .uasset 文件，验证蓝图识别 ✓ 2026-05-18
 - [~] **Phase 2: 蓝图节点提取** — 提取 EventGraph 节点、引脚、连线和画布坐标 ⚠️ UE Python API 受限，转 Phase 2B
 - [x] **Phase 2B: CUE4Parse 后端** — 用 CUE4Parse 替代 UE Python API，解决 NodeGuid/Pins/坐标不可访问问题 ✓ 2026-05-18
-- [ ] **Phase 3: 输出格式化** — 生成类 UE 编辑器风格的 MD 文本和结构化 JSON
-- [ ] **Phase 4: CLI 与验证** — 命令行界面、加载策略回退、交叉验证
+- [x] **Phase 3: 输出格式化** — 生成类 UE 编辑器风格的 MD 文本和结构化 JSON ✓ 2026-05-19
+- [x] **Phase 4: CLI 与验证** — 命令行界面、加载策略回退、交叉验证 ✓ 2026-05-19
 
 ---
 
@@ -122,8 +122,16 @@
   2. JSON 输出包含三层结构：nodes → pins → connections，所有提取数据正确嵌套
   3. 两种格式包含相同数据（MD 和 JSON 字段对等）
 
-**计划**: 待定
-**UI 提示**: 是
+**计划**: 1 个计划（3 个 wave）
+
+计划:
+- [x] `03-01-PLAN.md` — 验证现有 formatter.py，修复 PinType 分隔符 bug，端到端验证 ✓ 2026-05-19
+
+**验证结果:**
+- MD 格式：Begin Object ... End Object 结构正确，PinType 分隔符修复为 `,`
+- JSON 格式：snake_case 键、nodes/pins/connections 三级嵌套、connections 正确提取
+- 合成数据测试：所有格式断言通过
+- E2E：退出码 0，12 节点，MD 2302 字节，JSON 4049 字节
 
 ### Phase 4: CLI 与验证
 
@@ -138,7 +146,13 @@
   2. 用户可传入裸 .uasset 文件路径并成功加载；若加载失败，显示清晰提示要求指定 UE 项目 Content 目录
   3. 在 `BP_FirstPersonCharacter.uasset` 上运行工具的输出与 `蓝图节点文本参考.md` 中的关键字段匹配（节点数量、节点名称、函数引用、引脚结构）
 
-**计划**: 待定
+**计划**: 4 个计划（4 个 wave）
+
+计划:
+- [x] `04-01-PLAN.md` — 统一 CLI 入口：合并控制器，--help/--version/--format，标准退出码
+- [x] `04-02-PLAN.md` — 加载策略：CUE4Parse 裸文件直接加载，UE headless 失败回退提示 Content 目录
+- [x] `04-03-PLAN.md` — 交叉验证：输出与 蓝图节点文本参考.md 关键字段比对
+- [x] `04-04-PLAN.md` — 端到端 UAT：3 个成功标准验证通过
 
 ---
 
@@ -149,8 +163,8 @@
 | 1. UE 无头桥接 | 1/1 | 完成 | 2026-05-18 |
 | 2. 蓝图节点提取 | 3/3 | ⚠️ 部分完成 | 2026-05-18 — UE Python API 受限，转 Phase 2B |
 | 2B. CUE4Parse 后端 | 3/3 | 完成 | 2026-05-18 — Wave 2/3/5 完成，12 节点提取成功，.usmap 缺失导致坐标/GUID/Pins 为空 |
-| 3. 输出格式化 | 0/0 | 未开始 | - |
-| 4. CLI 与验证 | 0/0 | 未开始 | - |
+| 3. 输出格式化 | 1/1 | 完成 | 2026-05-19 — MD/JSON 验证通过，PinType 分隔符修复 |
+| 4. CLI 与验证 | 4/4 | 完成 | 2026-05-19 — 统一 CLI + 加载策略 + 交叉验证 + E2E UAT 通过 |
 
 ---
 
@@ -164,11 +178,11 @@
 | PARSE-04 | Phase 2/2B | ⚠️ Partial | EdGraphPin 不暴露到 Python；CUE4Parse 需 .usmap |
 | PARSE-05 | Phase 2/2B | ⚠️ Partial | LinkedTo 不可访问（依赖 PARSE-04） |
 | PARSE-06 | Phase 2/2B | ⚠️ Partial | NodePosX/Y 未暴露；CUE4Parse 需 .usmap |
-| OUT-01 | Phase 3 | Pending |
-| OUT-02 | Phase 3 | Pending |
-| OUT-03 | Phase 4 | Pending |
-| LOAD-01 | Phase 4 | Pending |
-| LOAD-02 | Phase 4 | Pending |
-| VERIFY-01 | Phase 4 | Pending |
+| OUT-01 | Phase 3 | Complete | 2026-05-19 — MD 输出匹配 UE 编辑器格式 |
+| OUT-02 | Phase 3 | Complete | 2026-05-19 — JSON snake_case，nodes/pins/connections 三级嵌套 |
+| OUT-03 | Phase 4 | Complete | 2026-05-19 — --format json/md 选择输出 |
+| LOAD-01 | Phase 4 | Complete | 2026-05-19 — CUE4Parse 直接读取任意路径 .uasset |
+| LOAD-02 | Phase 4 | Complete | 2026-05-19 — --content-dir 参数 + 结构化回退提示 |
+| VERIFY-01 | Phase 4 | Complete | 2026-05-19 --verify 参数，4 维度验证通过 |
 
-**Mapped: 12/12** | **Complete: 3/12** | **Partial: 4/12** (Phase 2B 用 CUE4Parse 解决节点提取，.usmap 阻塞坐标/Pins)
+**Mapped: 12/12** | **Complete: 7/12** | **Partial: 4/12** (PARSE-03~06 .usmap 阻塞坐标/Pins) | **Pending: 1/12**
