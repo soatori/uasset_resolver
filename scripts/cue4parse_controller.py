@@ -4,7 +4,8 @@
 用法：
   python scripts/cue4parse_controller.py [选项]
     --uasset PATH   .uasset 文件路径（默认：BP_FirstPersonCharacter.uasset）
-    --output PATH   输出 JSON 路径（默认：temp/cue4parse_result.json）
+    --format FMT    输出格式：json|md（默认：json）
+    --output PATH   输出路径（默认：temp/cue4parse_result.json 或 .md）
     --usmap PATH    .usmap 映射文件路径（可选）
     --timeout SECS  超时秒数（默认：30）
 
@@ -29,9 +30,15 @@ def main() -> int:
         help=".uasset 文件路径（默认：BP_FirstPersonCharacter.uasset）",
     )
     parser.add_argument(
+        "--format",
+        choices=["json", "md"],
+        default="json",
+        help="输出格式：json（结构化 JSON）、md（UE 编辑器文本格式）",
+    )
+    parser.add_argument(
         "--output",
-        default="temp/cue4parse_result.json",
-        help="输出 JSON 路径（默认：temp/cue4parse_result.json）",
+        default=None,
+        help="输出路径（默认：temp/cue4parse_result.json 或 .md，随 --format 变化）",
     )
     parser.add_argument(
         "--usmap",
@@ -88,11 +95,24 @@ def main() -> int:
     data["backend"] = "cue4parse"
     data["extraction_time_ms"] = elapsed_ms
 
-    # 写入输出 JSON
-    output_abs = os.path.abspath(args.output)
+    # 根据格式选择输出
+    if args.format == "md":
+        from formatter import format_md
+        output_text = format_md(data)
+        output_ext = ".md"
+    else:
+        from formatter import format_json
+        output_text = format_json(data)
+        output_ext = ".json"
+
+    # 输出路径（默认随格式变化）
+    if args.output:
+        output_abs = os.path.abspath(args.output)
+    else:
+        output_abs = os.path.abspath(f"temp/cue4parse_result{output_ext}")
     os.makedirs(os.path.dirname(output_abs), exist_ok=True)
     with open(output_abs, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write(output_text)
 
     node_count = len(data.get("nodes", data.get("Nodes", [])))
     print(f"[cue4parse] 提取完成：{node_count} 个节点，耗时 {elapsed_ms}ms")

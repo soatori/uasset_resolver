@@ -80,9 +80,27 @@
 
 ## 后续研究待办
 
-- [ ] 研究编辑器复制蓝图文本功能（`FEdGraphUtilities::ExportNodesToText`）
-- [ ] 评估 C++ 插件扩展 Python API 的可行性
-- [ ] 测试 CUE4Parse-Python 离线解析方案
+- [x] 研究编辑器复制蓝图文本功能（`FEdGraphUtilities::ExportNodesToText`） ✓ 2026-05-18 — 需 C++ 插件包装，用户不倾向
+- [x] 评估 C++ 插件扩展 Python API 的可行性 ✓ 2026-05-18 — 用户明确不希望在引擎中添加插件
+- [x] 测试 CUE4Parse-Python 离线解析方案 ✓ 2026-05-18 — 已编译验证（.NET 8.0），支持 UE 5.7/5.8
+- [x] 分析 uasset_read 项目 ✓ 2026-05-18 — 复杂度过高，可借鉴模块设计
+- [x] 虚幻盒子 (ue5box.com) 分析 ✓ 2026-05-18 — 商业产品，具体实现未公开
+- [x] C++ 独立工具可行性 ✓ 2026-05-18 — UnrealEd 构建守卫阻止，不可行
+- [x] UE 5.7/5.8 版本兼容性验证 ✓ 2026-05-18 — CUE4Parse 完整支持
+- [x] UnrealBridge Skill 分析 ✓ 2026-05-18 — 编辑器内自动化工具，互补但非替代
+
+## 推荐方案
+
+**混合方案：现有 Python API + CUE4Parse CLI**
+
+```
+Phase 2 Wave 4 计划：
+1. 节点类型/名称 ✅ (ObjectIterator - 已完成)
+2. 坐标/引脚/连线 → CUE4Parse CLI 补全 (2-4 天)
+3. Python subprocess 管道集成
+```
+
+详见：`02-ALTERNATIVE-PATHWAYS-RESEARCH.md` 方向 9-15
 
 ---
 

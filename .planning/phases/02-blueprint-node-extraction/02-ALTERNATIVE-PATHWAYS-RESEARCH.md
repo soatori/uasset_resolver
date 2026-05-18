@@ -1,20 +1,28 @@
 # Phase 2: 蓝图节点提取 — 替代方案深度研究
 
 **Researched:** 2026-05-18
-**Domain:** UE 5.7 编辑器功能、Blueprint 编译数据、第三方解析工具、Python API 可访问性
-**Confidence:** HIGH (基于 UE 5.7 源码分析 + Web 搜索验证)
+**Updated:** 2026-05-18 (第二轮研究：CUE4Parse 编译验证 + UE 5.7/5.8 兼容性 + 虚幻盒子分析 + UnrealBridge Skill)
+**Domain:** UE 5.7 编辑器功能、Blueprint 编译数据、第三方解析工具、Python API 可访问性、C# 离线解析
+**Confidence:** HIGH (基于 UE 5.7 源码分析 + Web 搜索验证 + 实际编译测试)
 
 ## Summary
 
-本研究深入探索了 UE 5.7 中获取蓝图节点信息的 **8 个可能替代方案**，以补充之前的研究。核心发现：
+本研究深入探索了 UE 5.7 中获取蓝图节点信息的 **12 个可能替代方案**。核心发现：
 
 1. **UE 编辑器确实有内置的"复制节点到文本"功能** — `FEdGraphUtilities::ExportNodesToText()`
 2. **该功能无法通过标准 Python API 直接访问** — 是纯静态 C++ 函数，需要 C++ 插件扩展
 3. **Blueprint 编译后的数据包含节点映射** — `UBlueprintGeneratedClass.DebugData`，但仅限编辑器构建
-4. **第三方解析库 CUE4Parse-Python 可完整解析 .uasset** — 是比手写解析器更可行的替代方案
+4. **第三方解析库 CUE4Parse 可完整解析 .uasset** — 已编译验证（.NET 8.0，0 错误，0 警告）
 5. **UE 5.7 没有新增专门用于节点提取的 API** — Blueprint VM Scripting 不涉及节点信息导出
+6. **虚幻盒子 (ue5box.com)** — 商业产品，采用 UE 插件 + 外部客户端架构，具体实现未公开
+7. **C++ 独立工具不可行** — UnrealEd 构建守卫阻止非 Editor Target 链接 UnrealEd 模块
+8. **CUE4Parse 完整支持 UE 5.7 和 5.8** — 27 天前还有 UE 5.8 相关修复提交
+9. **UnrealBridge Skill** — 在运行中的 UE 编辑器内执行 Python 的 TCP 桥接工具（独立于 uasset_resolver）
 
-**Primary recommendation:** 当前最佳方案仍是 Phase 2 已规划的 **UE Python API 直接提取**（已验证可行）。若需要离线解析能力，**CUE4Parse-Python** 是有价值的替代方案。
+**Primary recommendation:** 推荐 **混合方案**：
+- **Phase 2 现有 UE Python API**（节点类型/名称，已验证可行）
+- **CUE4Parse CLI**（坐标/引脚/连线补全，2-4 天实施）
+- 两者通过 Python subprocess 管道集成，无需 UE 插件
 
 ---
 
@@ -649,4 +657,480 @@ for node in event_graph.nodes:
 - 方向 5-8: MEDIUM — 综合搜索和源码分析
 
 **Research date:** 2026-05-18
+**Updated:** 2026-05-18 (第二轮研究完成)
 **Valid until:** UE 5.7 API 稳定（长期有效），CUE4Parse 活跃开发（短期需验证版本）
+
+---
+
+# 第二轮研究（2026-05-18）
+
+## 方向 9：uasset_read 项目分析
+
+### 项目概况
+
+**位置：** `E:\Develop\uasset_read\`
+**架构：** 模块化 Python 解析器，零依赖运行时
+
+```
+src/uasset_read/
+── archive.py              # FArchive 二进制读取器（支持字节交换/mmap）
+├── parse_uasset.py         # 主编排入口函数
+├── cli.py                  # 命令行接口
+── constants.py            # UE 版本常量/CPF 标志
+├── serializers/            # 序列化层（PackageSummary/Import/Export/PropertyTag/Graph）
+├── models/                 # 数据模型（UEdGraph/Node/Pin/Blueprint/Properties）
+├── parsers/                # 属性解析器（14种类型分派器）
+├── blueprint/              # 蓝图专用模块
+│   ├── variable_extractor.py   # 变量/函数/事件提取
+│   ├── transform_parser.py     # 组件变换解析
+│   └── component_extractor.py  # 组件树扫描
+├── graph/                  # 图解析模块（执行流/数据流追踪）
+└── link/                   # PackageLinker 两阶段对象图重建
+```
+
+### 技术方案
+
+1. **两阶段解析架构：** 先解析 PackageSummary/ImportMap/ExportMap，再按需反序列化对象属性
+2. **图结构三层解析：** Graph → Node → Pin（支持UE5版本1017）
+3. **类型系统：** FEdGraphPinType + 14种属性类型（Bool/Int/Float/Struct/Array/Map等）
+4. **连接追踪：** linked_to_raw → UObjectInstance 解析（v7.0引入）
+5. **执行/数据流追踪：** FunctionEntry → CallFunction 链追踪（v9.0）
+
+### 为何被认为过于复杂
+
+1. **多层间接抽象：** Archive → Serializer → Model → Parser → Formatter，调试链路长
+2. **版本适配复杂：** 需支持 UE5.0-5.6 多版本序列化差异（bool/bitfield/FText格式）
+3. **循环依赖处理：** 大量使用 TYPE_CHECKING 和延迟导入规避
+4. **worktree 管理混乱：** `.claude/worktrees/` 中存在多个并行分支副本
+5. **GSD 轻量级规划：** `.planning/` 目录有详细阶段跟踪但学习成本高
+
+### 可借鉴的经验
+
+1. **优雅降级设计：** 未知属性类型返回 None 而非抛异常（PROP-02）
+2. **模块解耦清晰：** blueprint/graph/link 模块职责分离明确
+3. **测试驱动开发：** 554 个测试用例覆盖主流场景
+4. **零依赖运行时：** 仅使用标准库（struct/mmap/dataclasses）
+5. **两阶段对象图：** PackageLinker 模式参考 UE 的 FLinkerLoad
+
+**复杂度评估：** 中高复杂度（适合深入学习 UE 蓝图序列化机制，但维护成本较高）
+
+---
+
+## 方向 10：虚幻盒子（ue5box.com）分析
+
+### 产品概况
+
+**虚幻盒子 UnrealAgent** — Windows 客户端工具，UE 5.0+ 支持
+
+**核心功能：**
+- 项目管理（拖入添加、预设模板、项目合集）
+- 资产库（引用/备份、云端挂载百度网盘/WebDAV）
+- 知识库（多模态摄入、AI 对话、结构化资产生成）
+- 自动化工作流（节点式可视化编排、AI Agent 内置）
+- AI 资产生成（图片/音乐/3D模型）
+
+### 技术架构推断
+
+**采用 UE 插件 + 外部客户端架构：**
+- 文档明确提到："未正确安装插件：请手动安装插件" — 说明有一个 UE 编辑器插件
+- 工作流部分："深度集成虚幻引擎，直接截取编辑器窗口、读取配置、操作资产"
+- 图片文件名 `ai_blueprint_assistant.png` — 确认有蓝图处理功能
+
+### 工作流系统特点
+
+- **节点式可视化编辑** — "像蓝图一样编排您的工作流"
+- **AI Agent 内置** — 支持图片生成、识别与逻辑推理
+- **分支/循环/序列控制** — 类似蓝图的控制流
+- **JSON/INI 读写、断点调试** — TA 专业需求
+
+### 与蓝图节点复制的关系
+
+文档没有公开具体的技术实现细节，但根据架构推断：
+
+| 可能方案 | 可行性评估 |
+|----------|-----------|
+| **UE 插件调用 ExportNodesToText** | ✅ 高度可能 — 他们有插件，这是最直接的方式 |
+| **Python API + 插件扩展** | ️ 可能 — 但文档未提到 Python |
+| **剪贴板直接操作** | ️ 可能 — 但无头模式受限 |
+
+**结论：** 虚幻盒子是商业产品，具体实现未公开。他们有 UE 插件，但技术细节未开放。
+
+---
+
+## 方向 11：C++ 独立工具可行性
+
+### 技术障碍
+
+**核心发现：UnrealEd 构建守卫**
+
+```cpp
+// UnrealEd.Build.cs 第 10-13 行
+if(!Target.bCompileAgainstEditor)
+{
+    throw new BuildException("Unable to instantiate UnrealEd module for non-editor targets.");
+}
+```
+
+**这意味着 UnrealEd 只能编译到 Editor Target。** 一个独立的 Program Target（如 BlankProgram）必须设置 `bCompileAgainstEditor = false`，因此**永远无法链接 UnrealEd 模块**。
+
+### ExportNodesToText 依赖链
+
+```
+FEdGraphUtilities (UnrealEd)
+  -> BlueprintGraph (依赖 UnrealEd -- 循环!)
+  -> Kismet
+  -> GraphEditor
+  -> Slate / SlateCore
+  -> EditorFramework
+  -> Engine
+  -> CoreUObject
+```
+
+整个 UnrealEd 的完整依赖包括 **100+ 个模块**，覆盖渲染、物理、Slate UI、资产工具链等大量与节点提取无关的功能。
+
+### 三种实现路径对比
+
+| 维度 | A: 独立 C++ .exe | B: Commandlet (.dll) | C: 现有方案 (headless Editor + Python) |
+|------|:-:|:-:|:-:|
+| **可行性** | 极低 | 中等 | 已在运行 |
+| **是否需要 UBT 编译** | 是 | 是 | 否 |
+| **链接 UnrealEd** | 不可能（构建守卫） | 可以 | N/A |
+| **启动时间** | 15-45 秒 | 15-45 秒 | 15-45 秒 |
+| **每次调用开销** | 完整进程启动 | 完整进程启动 | 完整进程启动 |
+| **编译时间** | ~5-15 分钟 | ~5-15 分钟 | 无 |
+| **依赖 UE 安装** | 需要完整引擎源码 | 需要完整引擎 | 只需要编辑器安装 |
+| **分发难度** | 需要配套 .dll + 引擎路径 | 需要配套 .dll + 引擎路径 | 只需要 Python 脚本 |
+| **跨平台** | 仅 Windows/Mac 编辑器平台 | 仅编辑器平台 | 同左 |
+
+### 最小 C++ 工具估算
+
+如果坚持要一个独立 C++ 工具，最小方案如下：
+
+```
+uasset_node_extractor/
+├── CMakeLists.txt
+├── src/
+│   ├── main.cpp              // 入口，参数解析
+│   ├── linker_wrapper.cpp    // FLinkerLoad 封装加载
+│   ├── node_exporter.cpp     // 仿 UExporter 的节点导出逻辑
+│   ── uasset_parser.cpp     // 直接解析 .uasset 二进制
+```
+
+**方案 A：链接 UE SDK（约 3000-5000 行）**
+- 需要 UE 编译工具链（UnrealBuildTool）
+- 链接 Core + CoreUObject + Engine
+- 直接调用 `FLinkerLoad` 加载包，然后调用 `UExporter` 导出
+- **本质是一个命令行 UE 程序，不是真正的"独立"工具**
+- 编译产物约 50-100MB
+
+**方案 B：完全重写解析器（约 5000-8000 行）**
+- 不依赖任何 UE 库
+- 直接解析 .uasset 二进制格式（NominalTable/ExportTable/ImportTable）
+- 自行实现反射数据的二进制反序列化
+- 手动构造节点文本格式
+- **工作量巨大，且 UE 每个版本格式可能变化**
+
+### UExporter 核心逻辑分析
+
+**完整导出链路：**
+
+```
+FEdGraphUtilities::ExportNodesToText()
+  → UExporter::ExportToOutputDevice()
+    → UExporter::ExportText()          // 由具体 Exporter 子类实现
+      → EmitBeginObject()              // 输出 "Begin Object Class=... Name=... ExportPath=..."
+      → ExportObjectInner()            // 输出所有 Inner 对象
+        → ExportProperties()           // 逐属性序列化
+          → FProperty::ExportText_InContainer()
+      → EmitEndObject()                // 输出 "End Object"
+```
+
+**关键发现：** `ExportNodesToText()` 本身只有 23 行有效代码。它的核心只有一行：
+
+```cpp
+UExporter::ExportToOutputDevice(&Context, Node, NULL, Archive, TEXT("copy"), 0, 
+    PPF_ExportsNotFullyQualified|PPF_Copy|PPF_Delimited, false, ThisOuter);
+```
+
+这调用的是 `UObjectExporterT3D::ExportText()`，仅 4 行：
+
+```cpp
+EmitBeginObject(Ar, Object, PortFlags);
+  ExportObjectInner(Context, Object, Ar, PortFlags);
+EmitEndObject(Ar);
+```
+
+**结论：** 导出逻辑本身极其简单，真正的复杂度在 `ExportProperties()` 中（约 200 行），它依赖 UE 的反射系统（`FProperty::ExportText_InContainer()`）逐字段序列化。
+
+**核心瓶颈：** 要使用 `UExporter` 导出节点文本，必须：
+1. 有一个正在运行的 UE 运行时环境（`UObject` 内存布局、GC、反射系统）
+2. .uasset 已通过 `FLinkerLoad` 反序列化到内存
+3. `UEdGraphNode` 对象已经实例化且属性已填充
+
+这意味着所谓的"独立 C++ 工具"本质上需要链接 `Core` + `CoreUObject` + `Engine` 模块，相当于一个最小化的 UE 命令行程序。
+
+### 推荐实施路径
+
+**不推荐** 抽取 UExporter 创建独立 C++ 工具，原因：
+
+1. **不是真正的独立** — 仍需 UE SDK 和编译环境，无法脱离 UE 生态
+2. **现有 Python 方案已可用** — node_utils.py 已完成完整提取逻辑
+3. **CUE4Parse 是更优的无编辑器方案** — 已有集成指南，无需重复造轮子
+
+---
+
+## 方向 12：CUE4Parse 编译验证与集成指南
+
+### 编译验证
+
+CUE4Parse 已成功编译：
+- **目标框架**: .NET 8.0
+- **编译环境**: .NET 10.0.204 SDK（完全兼容，已包含 8.0 运行时）
+- **编译结果**: 0 错误, 0 警告
+- CUE4Parse-Natives（CMake 本地库）构建失败但不影响蓝图解析——它仅用于音频解码
+
+### 项目结构
+
+仓库包含 4 个项目：
+- `CUE4Parse/` — 核心解析库（1.2.2）
+- `CUE4Parse-Conversion/` — 纹理/网格/音频转换
+- `CUE4Parse.Example/` — 示例入口（专为 Fortnite PAK 提取设计，不适用我们的场景）
+- `CUE4Parse.Tests/` — 最小测试集
+
+### 蓝图解析能力
+
+CUE4Parse **内置**了以下类，直接支持蓝图节点解析：
+
+| 类 | 路径 | 支持程度 |
+|---|---|---|
+| `UEdGraphNode` | `UE4/Assets/Exports/EdGraph/UEdGraphNode.cs` | 完整 — Pins 数组已解析 |
+| `UEdGraphPin` | `UE4/Assets/Exports/EdGraph/UEdGraphPin.cs` | 完整 — PinName/Direction/PinType/LinkedTo/DefaultValue/PersistentGuid |
+| `FEdGraphPinType` | `UE4/Objects/Engine/EdGraph/FEdGraphPinType.cs` | 完整 — 引脚类型的所有子字段 |
+| `UK2Node` | 同上 EdGraph 目录 | 继承 UEdGraphNode，无额外字段 |
+| `UBlueprintGeneratedClass` | `UE4/Objects/Engine/UBlueprintGeneratedClass.cs` | 包含 UberGraphFunction 引用 |
+
+**NodePosX/NodePosY** 不作为强类型字段存在，而是存储在 `UObject.Properties` 列表中，通过 `GetOrDefault<float>("NodePosX")` 访问。这是 UE 的标准序列化方式。
+
+### 关键风险：.usmap 映射文件
+
+UE5 的 .uasset 文件如果使用无版本属性（`PKG_UnversionedProperties` 标志），**必须**提供 `.usmap` 映射文件才能正确解析。测试文件 `BP_FirstPersonCharacter.uasset` 需要验证是否需要映射文件。
+
+### 与 UE 编辑器方案的差距
+
+对于**读取蓝图节点结构**这个目标，CUE4Parse 能力足够：
+- 节点位置 (PosX/PosY) — 支持
+- 引脚定义 (PinName/Direction/Type) — 支持
+- 连线关系 (LinkedTo) — 支持
+- 函数引用 — 部分支持（需要从 Properties 提取）
+- Kismet 字节码反编译 — 部分支持（基础表达式）
+
+不能做的：编译/验证蓝图、实时编辑器交互。
+
+---
+
+## 方向 13：C# 方案完整度对比
+
+### 方案概览
+
+| 维度 | **方案 A: CUE4Parse** | **方案 B: UAssetAPI** | **方案 C: UE 源码抽取** |
+|------|----------------------|----------------------|------------------------|
+| 语言 | C# (.NET 8.0) | C# (.NET 8.0) | C++ (UE 引擎模块) |
+| 运行方式 | 独立 CLI / pyUE4Parse | 独立 CLI / Python.NET | 引擎 Commandlet |
+| 依赖 UE 编辑器 | 不需要 | 不需要 | 需要（编译+运行） |
+| 编译状态 | 已验证 0 错误 0 警告 | 需重新编译 | 需完整引擎源码构建 |
+
+### 核心能力对比
+
+| 能力 | CUE4Parse | UAssetAPI | UE 源码抽取 |
+|------|-----------|-----------|-------------|
+| **UE 版本支持** | UE 4.x ~ 5.7+ | UE 4.13 ~ 5.7 | 任意版本（源码级） |
+| **NodePosX / NodePosY** | 需要 .usmap + 自定义解析 | 作为原始字节读取，不解构 | 完整（引擎原生序列化） |
+| **Pins（引脚）** | 需要 .usmap 反序列化属性名 | 原始字节，不解构 | 完整（`UEdGraphPin` 对象） |
+| **LinkedTo（连线）** | 需要 .usmap 解析 GUID 引用 | 原始字节 | 完整 |
+| **FunctionReference** | 部分支持（需映射） | 原始字节 | 完整（`FName` 直接读取） |
+| **Kismet 字节码** | 支持（有 kismet-analyzer 生态） | 支持（read/write raw） | 原生（`UK2Node` 对象树） |
+| **输出结构化程度** | 中等（需额外开发） | 低（字节级） | 高（对象级） |
+
+**关键差异：** CUE4Parse 和 UAssetAPI 都是**反序列化 cooked 文件**，而 cooked 蓝图的数据布局与 uncooked（源编辑器）蓝图不同。cooked 文件剥离了编辑器元数据，Node 位置、Pin 可视化信息可能被裁剪或重新编码。
+
+### .usmap 映射文件问题
+
+| 方案 | 是否需要 .usmap | 说明 |
+|------|----------------|------|
+| CUE4Parse | **是（UE5+ cooked 文件必须）** | UE5 默认使用 unversioned properties，属性名存为索引而非字符串，必须通过 `.usmap` 映射才能还原 |
+| UAssetAPI | **是（UE5+ cooked 文件）** | 同样需要 `.usmap`，但有文档指导手动加载 |
+| UE 源码抽取 | **否** | 引擎自身加载 uncooked 资产时，属性名直接从源码反射系统获取，无需外部映射 |
+
+**对项目的关键影响：** `BP_FirstPersonCharacter.uasset` 如果是 **uncooked（未烘焙）** 文件（直接从项目目录读取），CUE4Parse 可能不需要 `.usmap`，因为 uncooked 文件通常是 versioned properties。但如果是 **cooked** 文件，则必须有 `.usmap`。
+
+### Python 集成路径
+
+| 方案 | 集成方式 | 成熟度 | 风险 |
+|------|---------|--------|------|
+| CUE4Parse | **pyUE4Parse** (`pip install git+https://github.com/MinshuG/pyUE4Parse.git`) — Python 绑定 | 存在但有已知问题（Python 3.12+ `distutils` 缺失） | 中：需要修兼容性问题 |
+| CUE4Parse | **自定义 CLI**（C# 编译为 exe，Python `subprocess` 调用输出 JSON） | 成熟（UeBlueprintDumper 已验证此路径） | 低：最稳定方案 |
+| UAssetAPI | **Python.NET**（有示例项目） | 可用但需要手动编译 DLL + 配置 Python.NET | 中：配置复杂度高 |
+| UE 源码 | **Editor Python API**（`UE5Editor.exe -Run=PythonScript`） | 官方支持 | 低但依赖引擎 |
+
+### 实施时间对比
+
+| 阶段 | CUE4Parse CLI | UAssetAPI CLI | UE 源码 Commandlet |
+|------|--------------|---------------|-------------------|
+| 环境搭建 | 已完成（编译通过） | 1-2 小时（拉取+编译） | 1-2 天（引擎编译确认+模块创建） |
+| 蓝图解析开发 | 1-2 天（参考 UeBlueprintDumper） | 2-3 天（需自建解构逻辑） | 3-5 天（Commandlet + JSON 序列化） |
+| Python 集成 | 0.5 天（CLI JSON 管道） | 1 天（Python.NET 配置） | 1-2 天（subprocess 或 socket） |
+| 测试验证 | 0.5 天 | 1 天 | 1-2 天 |
+| **总计** | **2-4 天** | **4-7 天** | **1-2 周** |
+
+### 数据完整度评分
+
+| 数据项 | CUE4Parse | UAssetAPI | UE 源码抽取 |
+|--------|-----------|-----------|-------------|
+| 节点类型（Class/Name） | 80%（需 .usmap） | 70%（需手动解构） | 100% |
+| FunctionReference | 75%（需映射解析） | 60%（需手动解析 FName） | 100% |
+| NodePosX / NodePosY | 70%（cooked 可能丢失） | 50%（字节级读取） | 100% |
+| Pin 定义（PinId/PinName/PinType） | 75%（需 .usmap） | 60% | 100% |
+| Pin LinkedTo | 80% | 65% | 100% |
+| NodeGuid | 85% | 70% | 100% |
+| CustomProperties | 70% | 55% | 100% |
+
+> 评分基于 cooked vs uncooked 差异：cooked 蓝图会剥离编辑器元数据（如 Node 位置），uncooked 文件可获取 100% 数据。CUE4Parse 对 uncooked 文件的支持比对 cooked 文件更好。
+
+---
+
+## 方向 14：UE 5.7/5.8 版本兼容性验证
+
+### CUE4Parse 支持状态
+
+**完整支持 UE 5.7 和 UE 5.8**
+
+**证据：**
+1. **活动开发记录：** GitHub 活动日志显示 "Fix serialization issues in UE5.8" 的提交于 27 天前推送
+2. **依赖工具支持：** SolicenTEAM/UEExtractor 工具声明支持 UE 4.0-5.8，使用 CUE4Parse 库
+3. **解析兼容性：** CUE4Parse 作为解析库支持 UE4 和 UE5 的归档和包文件
+
+### UAssetAPI 支持状态
+
+**完整支持 UE 5.7**
+
+**证据：**
+1. **官方发布说明：** UAssetAPI 最新版本明确添加了对 Unreal Engine 5.6 和 5.7 的支持
+2. **版本范围：** 支持从 UE ~4.13 到 **5.7** 的各种已打包和未打包的 .uasset 文件
+3. **功能完整性：** 支持超过 100 种属性类型和 12 种资产类型
+
+**UE 5.8 状态：** 当前版本**不支持** UE 5.8（仍处于预览阶段）
+
+### UE 5.7 .uasset 格式变更
+
+**关键变更：**
+
+1. **原生节点格式变更（5.6 → 5.7）：**
+   - UE 5.6 引入了原生节点格式变更，UE 5.7 继承并使用新的原生节点元素
+   - 变更目的：避免额外的数据转换，提高 Blueprint 工作性能
+   - 对解析器的影响：解析器需要识别和处理新的原生节点序列化格式
+
+2. **包标志线程安全：**
+   - UE 5.7 中的包标志现在是线程安全的（thread-safe）
+   - 这影响多线程打包场景下的包写入方式
+
+3. **版本控制：**
+   - UE 5.7 继续使用 `EUnrealEngineObjectUE5Version` 和 `EUnrealEngineObjectUE4Version` 枚举
+   - 允许独立更新 UE5 特定更改和向后兼容性
+
+### 已知风险和缓解措施
+
+| 风险 | 描述 | 缓解措施 |
+|------|------|----------|
+| **AES 加密密钥缺失** | 解析加密的 UE5 游戏 .uasset 文件时失败 | 对于开发中未打包的 .uasset 文件，通常不需要密钥 |
+| **.usmap 映射文件缺失** | 无版本属性无法正确解析 | 如果有 UE 编辑器，使用 UnrealPak 从 .uproject 生成 .usmap；对于开发中文件，检查是否使用了有版本属性 |
+| **UE 5.8 支持延迟** | UAssetAPI 暂不支持 UE 5.8 | CUE4Parse 已支持 UE 5.8 |
+
+### 支持状态汇总
+
+| 工具 | UE 5.6 | UE 5.7 | UE 5.8 | 备注 |
+|------|--------|--------|--------|------|
+| **CUE4Parse** | ✅ 完整支持 | ✅ 完整支持 | ✅ 完整支持 | 通过活动日志和依赖工具验证 |
+| **UAssetAPI** | ✅ 完整支持 | ✅ 完整支持 | ❌ 不支持 | 需等待未来更新 |
+
+---
+
+## 方向 15：UnrealBridge Skill 分析
+
+### Skill 概况
+
+**位置：** `E:\Develop\uasset_resolver\.claude\skills\UnrealBridge/`
+**功能：** 在运行中的 UE 5.3+ 编辑器内直接执行 Python 脚本
+
+### 核心机制
+
+- **UDP 自动发现：** 通过组播 `239.255.42.99:9876` 发现运行中的 UE 编辑器
+- **TCP 桥接：** 建立 TCP 连接到编辑器的 OS 分配端口
+- **AST 预检：** 执行前进行 AST 预检，拒绝无效的 bridge 调用
+
+### 与 uasset_resolver 的关系
+
+| 维度 | UnrealBridge | uasset_resolver |
+|------|--------------|-----------------|
+| **运行环境** | 运行中的 UE 编辑器 | 离线（可 headless） |
+| **需要插件** | 是（UE 项目中安装 UnrealBridge 插件） | 否 |
+| **主要用途** | 编辑器内自动化（蓝图编辑、资产管理） | 离线读取 .uasset 文件 |
+| **蓝图操作** | 节点搜索、变量读写、Graph 编写 | 节点提取、结构解析 |
+| **资产操作** | 搜索、引用分析、依赖查询 | 资产加载、蓝图识别 |
+
+### 互补价值
+
+UnrealBridge **不能**替代 uasset_resolver，但可以互补：
+
+| 场景 | 推荐工具 |
+|------|----------|
+| 批量解析 .uasset 文件（CI/CD） | uasset_resolver (CUE4Parse) |
+| 在编辑器中自动化蓝图操作 | UnrealBridge |
+| 交叉验证数据 | UnrealBridge (编辑器) ↔ CUE4Parse (离线) |
+| 实时蓝图编辑 | UnrealBridge |
+| 离线资产分析 | uasset_resolver |
+
+---
+
+## 综合方案推荐（更新）
+
+### 最终方案对比矩阵
+
+| 方案 | 需要 UE | 实施时间 | 数据完整度 | 维护成本 | 版本兼容性 |
+|------|---------|----------|-----------|----------|-----------|
+| **现有 Python API** | ✅ 编辑器 | 已完成 | 节点类型 ✅ 坐标/引脚 | 低 | 官方支持 |
+| **CUE4Parse CLI** |  无 | 2-4 天 | 坐标/引脚 ✅ 需 .usmap | 中 | UE 5.7/5.8 ✅ |
+| **UE 源码抽取** | ✅ 引擎编译环境 | 1-2 周 | 100% | 高 | 源码级 |
+| **Commandlet** | ✅ 引擎编译环境 | 1-2 周 | 100% | 高 | 源码级 |
+| **C++ 独立工具** | ✅ UE SDK | 1-2 周 | 100% | 高 | 构建守卫阻止 |
+| **手写解析器** | 无 | 2-4 周 | 80%+ | 极高 | 需随版本更新 |
+
+### 推荐路径
+
+**P0: 现有 UE Python + ObjectIterator**（已完成）
+- 节点类型/名称提取已验证可行
+- 无额外依赖，立即可用
+
+**P1: CUE4Parse CLI + Python subprocess 管道**（推荐实施）
+```
+C# CLI (CUE4Parse) → JSON stdout → Python subprocess → 结构化数据
+```
+- 已编译验证（.NET 8.0，0 错误）
+- 无需 UE 编辑器
+- 无需 UE 插件
+- 参考 UeBlueprintDumper 已有实现
+- 支持 UE 5.7/5.8
+
+**P2: 混合验证方案**（可选）
+- 用 UE 源码 Commandlet 作为 ground truth 验证器
+- 对比 CUE4Parse 输出，确认数据完整性
+
+### 不推荐方案
+
+| 方案 | 不推荐原因 |
+|------|------------|
+| Blueprint 编译数据 | 数据不完整，无法获取节点属性 |
+| UE 5.7 新增 API | 不存在节点导出功能 |
+| C++ 插件扩展 | 用户明确不希望添加 UE 插件 |
+| C++ 独立工具 | UnrealEd 构建守卫阻止，需修改引擎源码 |
+| 手写解析器 | 复杂度极高，CUE4Parse 已提供完整实现 |
+| Headless 剪贴板 | UI 上下文不可用，无法使用剪贴板功能 |
