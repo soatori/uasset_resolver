@@ -37,14 +37,41 @@ def detect_asset_type(asset):
         bp = asset
         generated_class = bp.generated_class
         result["generated_class"] = str(generated_class) if generated_class else None
-        result["parent_class"] = str(bp.parent_class) if bp.parent_class else None
+
+        # 尝试获取父类（属性名可能因 UE 版本不同）
+        try:
+            parent_class = bp.parent_class
+            result["parent_class"] = str(parent_class) if parent_class else None
+        except AttributeError:
+            # UE 5.7 中 Blueprint 可能没有 parent_class 属性
+            # 尝试通过 generated_class 获取父类信息
+            if generated_class:
+                try:
+                    # generated_class 的父类通常是蓝图的父类
+                    parent = generated_class.get_class()
+                    result["parent_class"] = str(parent) if parent else None
+                except:
+                    result["parent_class"] = None
+            else:
+                result["parent_class"] = None
 
         # EventGraph 检测
         event_graph = unreal.BlueprintEditorLibrary.find_event_graph(bp)
         result["has_event_graph"] = event_graph is not None
         if event_graph:
             result["event_graph_name"] = str(event_graph.get_fname())
-            result["node_count"] = len(event_graph.nodes) if event_graph.nodes else 0
+            # 尝试获取节点数量（API 可能因 UE 版本不同）
+            try:
+                nodes = event_graph.nodes
+                result["node_count"] = len(nodes) if nodes else 0
+            except AttributeError:
+                # UE 5.7 中 EdGraph 可能没有 nodes 属性
+                # 使用 get_nodes() 或其他方法
+                try:
+                    nodes = event_graph.get_nodes()
+                    result["node_count"] = len(nodes) if nodes else 0
+                except:
+                    result["node_count"] = -1  # 表示无法获取
 
     return result
 

@@ -163,6 +163,7 @@ def run_ue_headless(ue_exe, project_path, script_path, output_path, timeout=300)
         "-unattended",
         "-NoLoadingScreen",
         "-NoScreenMessages",
+        "-stdout",  # 输出日志到 stdout
         f"-ExecutePythonScript={script_arg}",
     ]
 
@@ -179,11 +180,23 @@ def run_ue_headless(ue_exe, project_path, script_path, output_path, timeout=300)
 
     try:
         stdout, stderr = process.communicate(timeout=timeout)
+        if stdout:
+            print(f"[controller] UE stdout ({len(stdout)} chars):")
+            print(stdout)
+        if stderr:
+            print(f"[controller] UE stderr ({len(stderr)} chars):")
+            print(stderr)
         return process.returncode
     except subprocess.TimeoutExpired:
         print(f"[controller] 警告：UE 进程超时（{timeout}秒），强制终止")
         process.kill()
         stdout, stderr = process.communicate()
+        if stdout:
+            print(f"[controller] UE stdout (超时, {len(stdout)} chars):")
+            print(stdout)
+        if stderr:
+            print(f"[controller] UE stderr (超时, {len(stderr)} chars):")
+            print(stderr)
         return -1
 
 
