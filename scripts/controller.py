@@ -1,11 +1,12 @@
 """
-外部 Python 控制器：启动 UE 5.7 无头模式，执行资产加载脚本，
+外部 Python 控制器：启动 UE 无头模式或 CUE4Parse，执行资产加载脚本，
 采集结果并报告。
 
 用法：
   python scripts/controller.py [选项]
     --uasset PATH     .uasset 文件路径（默认：BP_FirstPersonCharacter.uasset）
-    --ue-path PATH    覆盖引擎路径（D-08 回退）
+    --backend MODE    后端选择：cue4parse|ue-headless|auto（默认：ue-headless）
+    --ue-path PATH    覆盖引擎路径（D-08 回退，仅 ue-headless/auto 模式）
     --output PATH     输出 JSON 路径（默认：temp/result.json）
     --timeout SECS    超时秒数（默认：120）
 """
@@ -15,6 +16,96 @@ import sys
 import subprocess
 import json
 import shutil
+import time
+
+
+def _resolve_project_root() -> str:
+    """获取项目根目录（查找 temp/minimal.uproject）。"""
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    while not os.path.exists(os.path.join(project_root, "temp", "minimal.uproject")):
+        parent = os.path.dirname(project_root)
+        if parent == project_root:
+            print("[controller] 错误：找不到 temp/minimal.uproject")
+            sys.exit(1)
+        project_root = parent
+    return project_root
+
+
+def _run_cue4parse_backend(uasset_path: str, output_path: str,
+                           usmap_path: str | None, timeout: int,
+                           project_root: str) -> int:
+    """
+    使用 CUE4Parse 后端提取蓝图节点。
+    返回 0=成功, 1=参数错误, 2=提取失败。
+    """
+    # 将 scripts/ 加入路径以便导入
+    scripts_dir = os.path.join(project_root, "scripts")
+    sys.path.insert(0, scripts_dir)
+    try:
+        from cue4parse_extractor import BPExtractor, BPExtractorError
+    except ImportError as exc:
+        print(f"[controller] 错误：无法导入 cue4parse_extractor：{exc}", file=sys.stderr)
+        return 1
+
+    try:
+        extractor = BPExtractor(
+            ue_version="UE5_7",
+            usmap_path=usmap_path,
+            timeout=timeout,
+        )
+    except Exception as exc:
+        print(f"[controller] 错误：无法初始化 BPExtractor：{exc}", file=sys.stderr)
+        return 1
+
+    print(f"[controller] 使用 CUE4Parse 后端提取：{uasset_path}")
+    start_ms = time.monotonic()
+    try:
+        data = extractor.extract_to_dict(uasset_path)
+    except BPExtractorError as exc:
+        print(f"[controller] CUE4Parse 提取失败：{exc}", file=sys.stderr)
+        return 2
+    elapsed_ms = round((time.monotonic() - start_ms) * 1000)
+
+    if not isinstance(data, dict):
+        data = {"raw": data}
+    data["backend"] = "cue4parse"
+    data["extraction_time_ms"] = elapsed_ms
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+    node_count = len(data.get("Nodes", data.get("nodes", [])))
+    print(f"[controller] CUE4Parse 提取完成：{node_count} 个节点，耗时 {elapsed_ms}ms")
+    return 0
+
+
+def _select_backend_auto(uasset_path: str, output_path: str,
+                         timeout: int, project_root: str,
+                         usmap_path: str | None = None) -> int:
+    """
+    auto 模式：先尝试 CUE4Parse，失败回退 ue-headless。
+    """
+    # 检查 BPExtractor.exe 是否存在
+    scripts_dir = os.path.join(project_root, "scripts")
+    sys.path.insert(0, scripts_dir)
+    try:
+        from cue4parse_extractor import BPExtractor
+        exe_path = BPExtractor._find_default_exe()
+        cue4parse_available = exe_path.is_file()
+    except Exception:
+        cue4parse_available = False
+
+    if cue4parse_available:
+        print("[controller] auto 模式：尝试 CUE4Parse 后端...")
+        rc = _run_cue4parse_backend(uasset_path, output_path, usmap_path, timeout, project_root)
+        if rc == 0:
+            return 0
+        print("[controller] CUE4Parse 失败，回退到 UE headless 后端...")
+
+    # 回退到 ue-headless
+    print("[controller] auto 模式：使用 UE headless 后端")
+    return _run_ue_headless_backend(project_root, uasset_path, output_path, timeout)
 
 
 def find_ue_via_registry():
@@ -216,56 +307,37 @@ def read_result(output_path):
         return None
 
 
-def main():
-    parser = argparse.ArgumentParser(description="UE 5.7 无头资产加载控制器")
-    parser.add_argument("--uasset", default="BP_FirstPersonCharacter.uasset",
-                        help=".uasset 文件路径")
-    parser.add_argument("--ue-path", default=None,
-                        help="覆盖 UE 引擎路径")
-    parser.add_argument("--output", default="temp/result.json",
-                        help="输出 JSON 路径")
-    parser.add_argument("--timeout", type=int, default=300,
-                        help="UE 进程超时秒数（默认 300，首次启动可能需要更长时间）")
-    args = parser.parse_args()
-
-    # 获取项目根目录（查找 temp/minimal.uproject）
-    project_root = os.path.dirname(os.path.abspath(__file__))
-    while not os.path.exists(os.path.join(project_root, "temp", "minimal.uproject")):
-        parent = os.path.dirname(project_root)
-        if parent == project_root:
-            print("[controller] 错误：找不到 temp/minimal.uproject")
-            sys.exit(1)
-        project_root = parent
-
-    print(f"[controller] 项目根目录：{project_root}")
-
-    # 1. 引擎检测
+def _run_ue_headless_backend(project_root: str, uasset_path: str,
+                              output_path: str, timeout: int,
+                              ue_override: str | None = None) -> int:
+    """
+    UE headless 后端提取流程（原有逻辑提取为函数）。
+    返回 0=成功, 1=失败。
+    """
     cache_path = os.path.join(project_root, "temp", "ue_config.json")
-    ue_exe = find_ue_editor(cache_path, args.ue_path)
+    ue_exe = find_ue_editor(cache_path, ue_override)
     if not ue_exe:
         print("[controller] 错误：无法找到 UE 5.7 引擎")
         print("[controller] 请通过 --ue-path 参数指定引擎路径")
-        sys.exit(1)
+        return 1
 
     # 首次成功后缓存
     if not os.path.exists(cache_path):
         cache_ue_path(ue_exe, cache_path)
 
-    # 2. 资产准备
-    uasset_path = os.path.abspath(args.uasset)
+    # 资产准备
     content_dir = os.path.join(project_root, "temp", "Content")
     virtual_path = prepare_asset(uasset_path, content_dir)
     if not virtual_path:
-        sys.exit(1)
+        return 1
 
-    # 3. 启动 UE
+    # 启动 UE
     project_path = os.path.join(project_root, "temp", "minimal.uproject")
     script_path = os.path.join(project_root, "scripts", "ue_extract.py")
-    output_path = os.path.join(project_root, args.output)
 
-    exit_code = run_ue_headless(ue_exe, project_path, script_path, output_path, args.timeout)
+    exit_code = run_ue_headless(ue_exe, project_path, script_path, output_path, timeout)
 
-    # 4. 读取结果
+    # 读取结果
     result = read_result(output_path)
     if result:
         print("\n[controller] === 结果摘要 ===")
@@ -280,13 +352,53 @@ def main():
             print(f"  错误：{result.get('error')}")
         print("[controller] === 完成 ===")
 
-    # 5. 退出
     if exit_code == 0 and result and result.get('is_blueprint'):
         print("[controller] 成功")
-        sys.exit(0)
+        return 0
     else:
         print(f"[controller] 失败（退出码={exit_code}）")
-        sys.exit(1)
+        return 1
+
+
+def main():
+    parser = argparse.ArgumentParser(description="UE 蓝图资产加载控制器")
+    parser.add_argument("--uasset", default="BP_FirstPersonCharacter.uasset",
+                        help=".uasset 文件路径")
+    parser.add_argument("--backend",
+                        choices=["cue4parse", "ue-headless", "auto"],
+                        default="ue-headless",
+                        help="后端选择：cue4parse（CUE4Parse/BPExtractor）、ue-headless（UE 无头模式）、auto（优先 CUE4Parse，失败回退）")
+    parser.add_argument("--ue-path", default=None,
+                        help="覆盖 UE 引擎路径（仅 ue-headless/auto 模式）")
+    parser.add_argument("--output", default="temp/result.json",
+                        help="输出 JSON 路径")
+    parser.add_argument("--timeout", type=int, default=300,
+                        help="进程超时秒数（默认 300，首次启动可能需要更长时间）")
+    parser.add_argument("--usmap", default=None,
+                        help=".usmap 映射文件路径（仅 cue4parse 模式）")
+    args = parser.parse_args()
+
+    project_root = _resolve_project_root()
+    print(f"[controller] 项目根目录：{project_root}")
+
+    uasset_path = os.path.abspath(args.uasset)
+    output_path = os.path.join(project_root, args.output)
+
+    # 根据 backend 分支
+    if args.backend == "cue4parse":
+        rc = _run_cue4parse_backend(
+            uasset_path, output_path, args.usmap, args.timeout, project_root
+        )
+    elif args.backend == "ue-headless":
+        rc = _run_ue_headless_backend(
+            project_root, uasset_path, output_path, args.timeout, args.ue_path
+        )
+    else:  # auto
+        rc = _select_backend_auto(
+            uasset_path, output_path, args.timeout, project_root, args.usmap
+        )
+
+    sys.exit(rc)
 
 
 if __name__ == "__main__":
