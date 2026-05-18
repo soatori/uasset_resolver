@@ -3,21 +3,23 @@ title: "项目状态"
 created: 2026-05-18
 current_milestone: "0.1.0"
 current_phase: "02-blueprint-node-extraction"
-workflow: "complete"
+workflow: "discuss"
 ---
 
 # 项目状态
 
 **项目**: uasset_resolver
 **里程碑**: 0.1.0 (初始)
-**状态**: shipped — Phase 1 已创建 PR #1，等待合并
+**状态**: phase-02 context gathered — 等待规划
 **创建**: 2026-05-18
 **更新**: 2026-05-18
 
 ## 当前阶段
 
-**Phase 2: 蓝图节点提取** — 待规划
+**Phase 2: 蓝图节点提取** — 上下文已收集
 - 目标：从已加载蓝图提取 EventGraph 节点、引脚、连线和画布坐标
+- 决策：12 个实现决策已锁定（UE Python API、字典结构、Pin内嵌连线等）
+- 下一步：`/gsd:plan-phase 2` 创建 PLAN.md
 
 ## 已完成阶段
 
